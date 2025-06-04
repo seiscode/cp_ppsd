@@ -1,0 +1,76 @@
+# PPSD 绘图配置文件 - period_lim 测试版本
+# 使用标准配色方案，专门测试 period_lim 参数
+
+# ========================================
+# 1. 全局设置
+# ========================================
+[global]
+log_level = "DEBUG"
+description = "PPSD绘图配置文件 - period_lim测试版本"
+version = "2.1"
+
+# ========================================
+# 2. 输入输出配置
+# ========================================
+[paths]
+input_npz_dir = "./output/npz/"
+inventory_path = "./input/BJ.XML"
+output_dir = "./output/plots/"
+output_filename_pattern = "{plot_type}_test_{datetime}_{network}-{station}-{location}-{channel}.png"
+
+# ========================================
+# 3. 绘图基本设置
+# ========================================
+[plotting]
+plot_types = ["standard"]  # 只生成standard图像来测试period_lim
+npz_merge_strategy = true
+dpi = 150
+figure_size = [12, 8]
+
+# ========================================
+# 4. 标准图配置
+# ========================================
+[standard]
+show_histogram = true
+show_percentiles = true
+show_noise_models = true
+show_coverage = false
+show_mode = false
+show_mean = false
+
+# 关键测试参数
+standard_grid = true
+period_lim = [0.1, 10.0]              # 测试范围：0.1-10Hz（因为xaxis_frequency=true）
+xaxis_frequency = true                 # X轴显示频率
+cumulative_plot = false
+coverage_alpha = 0.5
+cumulative_number_of_colors = 25
+max_num_face_colors = 40
+standard_cmap = "viridis"             # 使用标准配色方案而非自定义
+
+# 标准图样式子分组
+[standard.percentiles]
+values = [10, 50, 90]
+color = "lightgray"
+linewidth = 1.0
+linestyle = "--"
+alpha = 0.8
+
+[standard.peterson]
+nlnm_color = "blue"
+nhnm_color = "red"
+linewidth = 1.0
+linestyle = "--"
+alpha = 0.8
+
+[standard.mode]
+color = "orange"
+linewidth = 1.0
+linestyle = "-"
+alpha = 0.9
+
+[standard.mean]
+color = "green"
+linewidth = 1.0
+linestyle = "-"
+alpha = 0.9 

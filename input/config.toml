@@ -1,0 +1,73 @@
+# PPSD 计算配置文件 - 计算专用
+# 使用方法：python run_cp_ppsd.py config.toml
+# 此配置文件将始终尝试计算PPSD并保存NPZ文件。
+
+# === 1. 全局操作控制 ===
+log_level = "DEBUG" # 日志级别："DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+
+# === 2. 输入数据与输出路径 ===
+# mseed_pattern 可以是glob模式 (如 "./data/*.mseed") 或一个目录路径 (如 "./data/")。
+# 如果是目录路径，脚本将递归搜索该目录下的所有miniseed文件（执行效率会慢）。
+mseed_pattern = "./data/"                # 地震数据文件目录或glob模式
+inventory_path = "./input/BJ.dataless"   # 仪器响应文件路径
+output_dir = "./output/npz"              # NPZ文件输出目录
+
+# === 3. 输出生成控制 (隐式) ===
+# NPZ文件将总是被创建。
+# output_npz_filename_pattern 定义了生成NPZ数据文件名的规则。
+#   时间信息 (来自MiniSEED数据的开始/结束时间):
+#     开始时间: {start_year}, {start_month}, {start_day}, {start_hour}, {start_minute}, {start_second}, {start_julday}
+#     {start_datetime} (例如 YYYYMMDDHHMM 格式的紧凑开始时间戳)
+#     结束时间: {end_year}, {end_month}, {end_day}, {end_hour}, {end_minute}, {end_second}, {end_julday}
+#     {end_datetime} (例如 YYYYMMDDHHMM 格式的紧凑结束时间戳)
+#     兼容性: {datetime}, {year}, {month}, {day}, {hour}, {minute}, {second}, {julday} (等同于开始时间)
+#   台站信息: {network}, {station}, {location}, {channel}
+#     例如: "PPSD_{start_datetime}_{end_datetime}_{network}-{station}-{location}-{channel}.npz"
+# 如果未设置或为空，脚本将使用默认命名规则。
+output_npz_filename_pattern = "PPSD_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.npz"
+
+# === 4. PPSD核心计算参数 ([args]表内) ===
+[args]
+# --- 时间分段与窗口 ---
+ppsd_length = 3600                    # 时间窗口长度（秒），标准1小时。
+overlap = 0.5                         # 窗口重叠比例，50%重叠。
+
+# --- 频率/周期域参数 ---
+period_limits = [0.01, 1000.0]        # PPSD计算的周期范围（秒）。
+period_smoothing_width_octaves = 1.0  # 周期平滑宽度（倍频程）。
+period_step_octaves = 0.125           # 周期步长（1/8倍频程）。
+
+# --- 振幅域参数 (功率分箱) ---
+db_bins = [-200.0, -50.0, 0.25]       # dB分箱：[最小值, 最大值, 步长]。
+
+# --- 数据质量与选择 ---
+skip_on_gaps = false                 # 是否跳过有数据缺失的窗口。
+                                      # McNamara2004 通过补零合并含间断的trace，这会在PPSD图中产生可识别的异常PSD线。
+                                      # 设置为true则不补零，可能导致短于ppsd_length的数据段不被使用。
+
+# Stream.merge()方法参数 - 控制如何合并同一通道的多个trace段
+merge_method = 0                      # 合并方法：0=标准, 1=插值, -1=清理
+                                      # 0: 标准合并，重叠部分取平均值
+                                      # 1: 使用插值处理重叠
+                                      # -1: 仅清理，不处理重叠
+
+merge_fill_value = "None"             # 间隙填充值，默认None使用masked array
+                                      # None: 使用numpy.ma.masked_array保留间隙信息
+                                      # 数值: 用指定值填充间隙
+                                      # "latest": 使用间隙前的最后一个值
+                                      # "interpolate": 线性插值填充
+                                      
+# special_handling = "None"           # 特殊仪器处理。可选值: "ringlaser", "hydrophone", "None"(默认), 或注释掉。
+                                      # None(默认): 标准地震仪处理（仪器校正+微分，将速度转换为加速度）
+                                      # "ringlaser": 不进行仪器校正，仅除以metadata中的sensitivity，不做微分
+                                      # "hydrophone": 仪器校正后不做微分操作（保持原始物理量）
+
+# 以下相关参数用于脚本层面的外部事件剔除逻辑，在数据送入PPSD对象前使用，非PPSD.__init__直接参数。
+# time_of_weekday = [1, 2, 3, 4, 5]     # 分析的星期几（1=周一，7=周日），工作日。用于预先筛选Trace对象，非PPSD直接参数。
+# processing_time_window = ["2023-01-01T00:00:00", "2023-01-31T23:59:59"] # (可选) 指定处理数据的绝对时间窗口 [开始时间, 结束时间]，ISO 8601格式。用于预筛选Trace，非PPSD直接参数。
+# daily_time_window = ["01:00:00", "05:00:00"] # (可选) 指定每天处理数据的时间窗口 [开始时间, 结束时间]，HH:MM:SS格式。用于预筛选Trace，非PPSD直接参数。
+# enable_external_stalta_filter = false # 是否启用外部STA/LTA事件剔除预处理流程。
+# sta_length = 120                    # (外部STA/LTA) 短时平均长度（秒）。
+# lta_length = 600                    # (外部STA/LTA) 长时平均长度（秒）。
+# stalta_thresh_on = 2.5              # (外部STA/LTA) 触发阈值上限。
+# stalta_thresh_off = 1.5             # (外部STA/LTA) 触发阈值下限。

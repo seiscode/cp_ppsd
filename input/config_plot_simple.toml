@@ -1,0 +1,50 @@
+# PPSD绘图配置文件 - 简单分组格式
+# 此配置文件演示简单分组格式，将配置按绘图类型分组
+# 统一配置适配器会自动检测并处理此格式
+
+# === 全局配置 ===
+log_level = "DEBUG"
+description = "PPSD绘图配置文件 - 简单分组格式示例"
+
+# === 路径配置 ===
+input_npz_dir = "./output/npz/"
+inventory_path = "./input/BJ.XML"
+output_dir = "./output/plots/"
+output_filename_pattern = "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+
+# === 绘图配置 ===
+plot_types = ["standard", "temporal", "spectrogram"]
+npz_merge_strategy = true
+dpi = 150
+figure_size = [12, 8]
+
+# === Standard绘图配置 ===
+[standard]
+show_histogram = true
+show_coverage = false
+show_percentiles = true
+show_noise_models = true
+show_mode = false
+show_mean = false
+grid = true
+percentiles = [10, 50, 90]
+period_lim = [0.01, 1000.0]
+xaxis_frequency = false
+cumulative_plot = false
+cumulative_number_of_colors = 25
+max_num_face_colors = 40
+cmap = "viridis"
+
+# === Temporal绘图配置 ===
+[temporal]
+plot_periods = [1.0, 8.0, 20.0]
+time_format_x = "%H:%M"
+grid = true
+cmap = "Blues"
+
+# === Spectrogram绘图配置 ===
+[spectrogram]
+clim = [-180, -100]
+time_format_x = "%Y-%m-%d"
+grid = true
+cmap = "viridis" 

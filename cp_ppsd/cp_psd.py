@@ -1,0 +1,2040 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+:Author: 
+    muly (muly@cea-igp.ac.cn)
+:license:
+    GNU Lesser General Public License, Version 3
+    (https://www.gnu.org/copyleft/lesser.html)
+"""
+"""
+PPSD 批量处理与可视化工具
+
+本脚本用于地震学中的背景噪声分析，基于ObsPy库实现，支持通过TOML配置文件
+进行批量地动噪声PPSD计算和可视化。
+
+主要功能：
+- 支持计算型配置文件进行PPSD计算并保存NPZ文件
+- 支持绘图型配置文件加载NPZ数据并生成可视化图像
+- 支持多种绘图类型：standard、temporal、spectrogram
+- 支持分组配置文件（config_plot_grouped.toml）自动适配
+- 详细的日志记录和错误处理
+
+使用方法：
+    python run_cp_ppsd.py config.toml                    # 仅计算
+    python run_cp_ppsd.py config_plot.toml               # 仅绘图
+    python run_cp_ppsd.py config.toml config_plot.toml   # 计算+绘图
+"""
+
+import argparse
+import glob
+import logging
+import os
+import sys
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
+
+import matplotlib
+matplotlib.use('Agg')  # 使用非交互式后端，不显示图片
+import matplotlib.pyplot as plt
+
+
+try:
+    import toml
+except ImportError:
+    print("错误：未安装 toml 库，请运行: pip install toml")
+    sys.exit(1)
+
+try:
+    from obspy import read, read_inventory, UTCDateTime
+    from obspy.signal import PPSD
+    from obspy.core import Trace, Stream
+    import numpy as np
+except ImportError:
+    print("错误：未安装 ObsPy 库，请运行: pip install obspy")
+    sys.exit(1)
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    # 如果没有tqdm，使用简单的替代
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+
+# 检查可选依赖的导入
+try:
+    from .grouped_config_adapter import GroupedConfigAdapter
+    GROUPED_CONFIG_ADAPTER_AVAILABLE = True
+except ImportError:
+    GROUPED_CONFIG_ADAPTER_AVAILABLE = False
+    print("警告: grouped_config_adapter 不可用")
+
+try:
+    from .unified_config_adapter import UnifiedConfigAdapter
+    UNIFIED_CONFIG_ADAPTER_AVAILABLE = True
+except ImportError:
+    UNIFIED_CONFIG_ADAPTER_AVAILABLE = False
+    print("警告: unified_config_adapter 不可用")
+
+try:
+    from .custom_colormaps import (register_custom_colormaps, 
+                                   get_custom_colormap)
+    CUSTOM_COLORMAPS_AVAILABLE = True
+except ImportError:
+    CUSTOM_COLORMAPS_AVAILABLE = False
+
+
+class PPSDProcessor:
+    """PPSD处理器主类"""
+    
+    def __init__(self, config_files: List[str]):
+        """
+        初始化PPSD处理器
+        
+        Args:
+            config_files: 配置文件路径列表
+        """
+        self.config_files = config_files
+        self.configs = []
+        self.logger = None
+        self.ppsd_data = {}  # 存储计算的PPSD数据
+        
+        # 加载配置文件
+        self._load_configs()
+        
+        # 设置日志
+        self._setup_logging()
+        
+        # 注册自定义配色方案
+        self._register_custom_colormaps()
+        
+    def _load_configs(self):
+        """加载所有配置文件（支持统一配置适配器）"""
+        for config_file in self.config_files:
+            if not os.path.exists(config_file):
+                print(f"错误：配置文件 {config_file} 不存在")
+                sys.exit(1)
+            
+            try:
+                # 优先使用统一配置适配器
+                if UNIFIED_CONFIG_ADAPTER_AVAILABLE:
+                    print(f"使用统一配置适配器加载: {config_file}")
+                    
+                    adapter = UnifiedConfigAdapter(config_file)
+                    config = adapter.get_config()
+                    
+                    # 显示格式信息
+                    format_type = adapter.get_format()
+                    format_descriptions = {
+                        "grouped": "精细分组格式",
+                        "simple": "简单分组格式", 
+                        "flat": "扁平格式"
+                    }
+                    
+                    print(f"检测到配置格式: {format_descriptions.get(format_type, '未知格式')}")
+                    if hasattr(adapter, 'adapted_config') and 'version' in config:
+                        print(f"配置版本: {config.get('version', 'N/A')}")
+                    if hasattr(adapter, 'adapted_config') and 'description' in config:
+                        print(f"配置描述: {config.get('description', 'N/A')}")
+                    
+                elif GROUPED_CONFIG_ADAPTER_AVAILABLE:
+                    # 备用：使用分组配置适配器
+                    with open(config_file, 'r', encoding='utf-8') as f:
+                        raw_config = toml.load(f)
+                    
+                    is_grouped = self._is_grouped_config_structure(raw_config)
+                    
+                    if is_grouped:
+                        print(f"检测到分组配置文件: {config_file}")
+                        print("使用分组配置适配器进行解析...")
+                        
+                        adapter = GroupedConfigAdapter(config_file)
+                        config = adapter.get_config()
+                        
+                        print("配置适配成功")
+                        print(f"配置版本: {config.get('version', 'N/A')}")
+                        print(f"配置描述: {config.get('description', 'N/A')}")
+                    else:
+                        config = raw_config
+                        
+                else:
+                    # 最后备用：直接加载TOML
+                    with open(config_file, 'r', encoding='utf-8') as f:
+                        config = toml.load(f)
+                    print(f"直接加载配置文件: {config_file}")
+                
+                config['_file_path'] = config_file
+                self.configs.append(config)
+                
+            except Exception as e:
+                print(f"错误：无法加载配置文件 {config_file}: {e}")
+                print("提示：请检查配置文件格式是否正确")
+                sys.exit(1)
+    
+    def _setup_logging(self):
+        """设置日志系统"""
+        # 从第一个配置文件获取日志设置
+        log_level = self.configs[0].get('log_level', 'INFO')
+        
+        # 设置日志目录为项目根目录下的logs
+        log_dir = './logs'
+        
+        # 创建日志目录
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        
+        # 设置日志格式
+        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        
+        # 创建logger
+        self.logger = logging.getLogger('cp_ppsd')
+        self.logger.setLevel(getattr(logging, log_level.upper()))
+        
+        # 清除已有的处理器
+        self.logger.handlers.clear()
+        
+        # 控制台处理器
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(getattr(logging, log_level.upper()))
+        console_formatter = logging.Formatter(log_format)
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
+        
+        # 文件处理器
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = os.path.join(log_dir, f'ppsd_processing_{timestamp}.log')
+        file_handler = logging.FileHandler(log_file, encoding='utf-8')
+        file_handler.setLevel(getattr(logging, log_level.upper()))
+        file_formatter = logging.Formatter(log_format)
+        file_handler.setFormatter(file_formatter)
+        self.logger.addHandler(file_handler)
+        
+        self.logger.info(f"日志系统初始化完成，日志文件: {log_file}")
+    
+    def _register_custom_colormaps(self):
+        """注册自定义配色方案"""
+        if CUSTOM_COLORMAPS_AVAILABLE:
+            try:
+                register_custom_colormaps()
+                self.logger.info("自定义配色方案注册成功")
+            except Exception as e:
+                self.logger.warning(f"自定义配色方案注册失败: {e}")
+        else:
+            self.logger.debug("自定义配色方案模块不可用")
+    
+    def _is_calculation_config(self, config: Dict) -> bool:
+        """判断是否为计算型配置文件"""
+        file_path = config.get('_file_path', '')
+        return (file_path.endswith('_calc.toml') or 
+                file_path.endswith('config.toml') or
+                'mseed_pattern' in config)
+    
+    def _is_plot_config(self, config: Dict) -> bool:
+        """判断是否为绘图型配置文件"""
+        file_path = config.get('_file_path', '')
+        return (file_path.endswith('_plot.toml') or 
+                'input_npz_dir' in config or
+                'plot_type' in config.get('args', {}))
+    
+    def _find_mseed_files(self, pattern: str) -> List[str]:
+        """查找MiniSEED文件"""
+        if os.path.isdir(pattern):
+            # 如果是目录，递归搜索
+            extensions = ['*.mseed', '*.msd', '*.seed']
+            files = []
+            for ext in extensions:
+                files.extend(glob.glob(os.path.join(pattern, '**', ext), recursive=True))
+            return sorted(files)
+        else:
+            # 如果是glob模式
+            return sorted(glob.glob(pattern))
+    
+    def _generate_filename(self, pattern: str, metadata: Dict, plot_type: str = None, data_starttime=None, data_endtime=None) -> str:
+        """生成文件名"""
+        if not pattern:
+            # 使用默认命名规则
+            if plot_type:
+                return f"{plot_type}_{metadata.get('network', 'XX')}.{metadata.get('station', 'XXXX')}.{metadata.get('location', '')}.{metadata.get('channel', 'XXX')}.png"
+            else:
+                return f"PPSD_{metadata.get('network', 'XX')}.{metadata.get('station', 'XXXX')}.{metadata.get('location', '')}.{metadata.get('channel', 'XXX')}.npz"
+        
+        # 使用数据开始时间或当前时间
+        if data_starttime is not None:
+            # 使用MiniSEED数据的开始时间
+            start_dt = data_starttime.datetime
+            self.logger.debug(f"使用数据开始时间生成文件名: {start_dt}")
+        else:
+            # 回退到当前时间
+            start_dt = datetime.now()
+            self.logger.debug("使用当前时间生成文件名")
+        
+        # 使用数据结束时间（如果提供）
+        if data_endtime is not None:
+            end_dt = data_endtime.datetime
+            self.logger.debug(f"使用数据结束时间生成文件名: {end_dt}")
+        else:
+            # 如果没有结束时间，使用开始时间
+            end_dt = start_dt
+            self.logger.debug("未提供结束时间，使用开始时间")
+        
+        # 替换占位符
+        replacements = {
+            'network': metadata.get('network', 'XX'),
+            'station': metadata.get('station', 'XXXX'),
+            'location': metadata.get('location', ''),
+            'channel': metadata.get('channel', 'XXX'),
+            # 开始时间相关变量
+            'start_datetime': start_dt.strftime('%Y%m%d%H%M'),
+            'start_year': str(start_dt.year),
+            'start_month': f"{start_dt.month:02d}",
+            'start_day': f"{start_dt.day:02d}",
+            'start_hour': f"{start_dt.hour:02d}",
+            'start_minute': f"{start_dt.minute:02d}",
+            'start_second': f"{start_dt.second:02d}",
+            'start_julday': f"{start_dt.timetuple().tm_yday:03d}",
+            # 结束时间相关变量
+            'end_datetime': end_dt.strftime('%Y%m%d%H%M'),
+            'end_year': str(end_dt.year),
+            'end_month': f"{end_dt.month:02d}",
+            'end_day': f"{end_dt.day:02d}",
+            'end_hour': f"{end_dt.hour:02d}",
+            'end_minute': f"{end_dt.minute:02d}",
+            'end_second': f"{end_dt.second:02d}",
+            'end_julday': f"{end_dt.timetuple().tm_yday:03d}",
+            # 兼容性变量 (等同于开始时间)
+            'datetime': start_dt.strftime('%Y%m%d%H%M'),
+            'year': str(start_dt.year),
+            'month': f"{start_dt.month:02d}",
+            'day': f"{start_dt.day:02d}",
+            'hour': f"{start_dt.hour:02d}",
+            'minute': f"{start_dt.minute:02d}",
+            'second': f"{start_dt.second:02d}",
+            'julday': f"{start_dt.timetuple().tm_yday:03d}",
+        }
+        
+        if plot_type:
+            replacements['plot_type'] = plot_type
+        
+        filename = pattern
+        for key, value in replacements.items():
+            filename = filename.replace(f'{{{key}}}', str(value))
+        
+        return filename
+    
+    def calculate_ppsd(self, config: Dict):
+        """执行PPSD计算 - 每个MiniSEED文件生成一个NPZ文件，正确处理间隙"""
+        self.logger.info("开始PPSD计算（单文件模式，支持间隙处理）")
+        
+        # 获取参数
+        mseed_pattern = config.get('mseed_pattern')
+        inventory_path = config.get('inventory_path')
+        output_dir = config.get('output_dir', './ppsd_results')
+        args = config.get('args', {})
+        
+        if not mseed_pattern or not inventory_path:
+            raise ValueError("计算配置文件必须包含 mseed_pattern 和 inventory_path")
+        
+        # 创建输出目录
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # 读取仪器响应
+        self.logger.info(f"读取仪器响应文件: {inventory_path}")
+        try:
+            inventory = read_inventory(inventory_path)
+        except Exception as e:
+            self.logger.error(f"无法读取仪器响应文件: {e}")
+            raise
+        
+        # 查找数据文件
+        mseed_files = self._find_mseed_files(mseed_pattern)
+        if not mseed_files:
+            raise ValueError(f"未找到匹配的数据文件: {mseed_pattern}")
+        
+        self.logger.info(f"找到 {len(mseed_files)} 个数据文件")
+        
+        # 获取间隙处理参数
+        skip_on_gaps = args.get('skip_on_gaps', False)
+        merge_fill_value = args.get('merge_fill_value', None)  # None表示使用masked array
+        
+        # 处理字符串形式的 "None"
+        if isinstance(merge_fill_value, str) and merge_fill_value.lower() in ['none', 'null']:
+            merge_fill_value = None
+        
+        merge_method = args.get('merge_method', 0)  # ObsPy merge方法：0=standard, 1=interpolation, -1=cleanup
+        
+        # 如果skip_on_gaps=True，强制不补零，保持原始间隙
+        if skip_on_gaps:
+            merge_fill_value = None
+            self.logger.info(f"间隙处理设置: skip_on_gaps={skip_on_gaps} (强制不补零), fill_value={merge_fill_value}, method={merge_method}")
+        else:
+            self.logger.info(f"间隙处理设置: skip_on_gaps={skip_on_gaps}, fill_value={merge_fill_value}, method={merge_method}")
+        
+        # 逐个处理每个MiniSEED文件
+        successful_files = 0
+        failed_files = 0
+        
+        for mseed_file in tqdm(mseed_files, desc="处理MiniSEED文件"):
+            try:
+                self.logger.debug(f"处理文件: {mseed_file}")
+                
+                # 读取整个文件的Stream
+                stream = read(mseed_file)
+                self.logger.debug(f"文件包含 {len(stream)} 个trace")
+                
+                # 按通道分组trace（同一通道的不同时间段需要合并）
+                channel_groups = {}
+                for trace in stream:
+                    trace_id = f"{trace.stats.network}.{trace.stats.station}.{trace.stats.location}.{trace.stats.channel}"
+                    if trace_id not in channel_groups:
+                        channel_groups[trace_id] = []
+                    channel_groups[trace_id].append(trace)
+                    
+                self.logger.debug(f"按通道分组后得到 {len(channel_groups)} 个通道组")
+        
+                # 处理每个通道组
+                for channel_id, traces in channel_groups.items():
+                    try:
+                        self.logger.debug(f"处理通道 {channel_id}，包含 {len(traces)} 个trace段")
+                
+                        # 创建新的Stream并添加该通道的所有traces
+                        channel_stream = Stream()
+                        for trace in traces:
+                            channel_stream.append(trace)
+                        
+                        # 根据skip_on_gaps决定是否合并traces
+                        if skip_on_gaps:
+                            # skip_on_gaps=True: 不合并，每个连续段独立处理
+                            self.logger.debug(f"skip_on_gaps=True，保持 {len(channel_stream)} 个独立trace段，不进行合并")
+                            traces_to_process = channel_stream.traces  # 使用原始的独立trace段
+                        else:
+                            # skip_on_gaps=False: 合并所有段
+                            try:
+                                self.logger.debug(f"skip_on_gaps=False，合并前: {len(channel_stream)} 个trace段")
+                                if len(channel_stream) > 1:
+                                    # 打印合并前的时间信息
+                                    for i, tr in enumerate(channel_stream):
+                                        self.logger.debug(f"  Trace {i}: {tr.stats.starttime} - {tr.stats.endtime} ({tr.stats.npts} 样本)")
+                                    
+                                    # 执行合并
+                                    channel_stream.merge(
+                                        method=merge_method,
+                                        fill_value=merge_fill_value,
+                                        interpolation_samples=0
+                                    )
+                                    
+                                    self.logger.debug(f"合并后: {len(channel_stream)} 个trace段")
+                                    for i, tr in enumerate(channel_stream):
+                                        self.logger.debug(f"  合并Trace {i}: {tr.stats.starttime} - {tr.stats.endtime} ({tr.stats.npts} 样本)")
+                                        # 检查是否包含masked array（表示存在间隙）
+                                        if hasattr(tr.data, 'mask'):
+                                            masked_count = tr.data.mask.sum() if tr.data.mask is not False else 0
+                                            self.logger.debug(f"    包含 {masked_count} 个masked样本点（间隙）")
+                                else:
+                                    self.logger.debug("单个trace，无需合并")
+                                    
+                            except Exception as merge_error:
+                                self.logger.error(f"合并trace失败 {channel_id}: {merge_error}")
+                                # 如果合并失败，使用原始traces
+                                self.logger.warning(f"回退到使用原始traces处理 {channel_id}")
+                            
+                            traces_to_process = channel_stream.traces  # 使用合并后的trace(s)
+                        
+                        # 处理trace(s)
+                        for trace in traces_to_process:
+                            try:
+                                # 检查是否包含间隙（masked array）
+                                has_gaps = hasattr(trace.data, 'mask') and trace.data.mask is not False
+                                if has_gaps:
+                                    gap_count = trace.data.mask.sum() if hasattr(trace.data, 'mask') else 0
+                                    gap_percentage = (gap_count / len(trace.data)) * 100
+                                    self.logger.info(f"Trace {trace.id} 包含间隙: {gap_count} 样本 ({gap_percentage:.1f}%)")
+                                    self.logger.info(f"处理包含间隙的trace（合并模式）: {trace.id}")
+                                else:
+                                    if skip_on_gaps:
+                                        self.logger.info(f"处理独立连续trace段（不合并模式）: {trace.id} ({trace.stats.starttime} - {trace.stats.endtime})")
+                                    else:
+                                        self.logger.info(f"处理连续trace: {trace.id}")
+                                
+                                # 为每个trace生成唯一的NPZ文件
+                                self._process_single_merged_trace_to_npz(
+                                    trace, inventory, args, output_dir, config, mseed_file
+                                )
+                                successful_files += 1
+                                
+                            except Exception as e:
+                                self.logger.error(f"处理合并后的trace失败 {trace.id} 从文件 {mseed_file}: {e}")
+                                failed_files += 1
+                                continue
+                                
+                    except Exception as e:
+                        self.logger.error(f"处理通道组失败 {channel_id} 从文件 {mseed_file}: {e}")
+                        failed_files += 1
+                        continue
+                        
+            except Exception as e:
+                self.logger.error(f"读取文件失败 {mseed_file}: {e}")
+                failed_files += 1
+                continue
+        
+        self.logger.info(f"PPSD计算完成 - 成功: {successful_files}, 失败: {failed_files}")
+    
+    def _process_single_merged_trace_to_npz(self, trace: Trace, inventory, args: Dict, output_dir: str, config: Dict, original_file: str):
+        """为单个合并后的trace生成独立的NPZ文件"""
+        # 获取PPSD参数
+        special_handling = args.get('special_handling', None)
+        # 处理字符串"None"的情况，转换为Python的None
+        if special_handling == "None" or special_handling == "none" or special_handling == "null":
+            special_handling = None
+        
+        ppsd_params = {
+            'ppsd_length': args.get('ppsd_length', 3600),
+            'overlap': args.get('overlap', 0.5),
+            'period_smoothing_width_octaves': args.get('period_smoothing_width_octaves', 1.0),
+            'period_step_octaves': args.get('period_step_octaves', 0.125),
+            'period_limits': args.get('period_limits', [0.01, 1000.0]),
+            'db_bins': args.get('db_bins', [-200.0, -50.0, 0.25]),
+            'skip_on_gaps': args.get('skip_on_gaps', False),
+            'special_handling': special_handling
+        }
+        
+        # 根据special_handling类型准备metadata
+        if special_handling == "ringlaser":
+            # ringlaser模式：不进行仪器校正，仅除以sensitivity
+            try:
+                sensitivity = self._extract_sensitivity_from_inventory(trace, inventory)
+                metadata = {'sensitivity': sensitivity}
+                self.logger.debug(f"使用ringlaser模式，sensitivity: {sensitivity}")
+            except Exception as e:
+                self.logger.error(f"ringlaser模式下无法提取sensitivity {trace.id}: {e}")
+                raise
+        elif special_handling == "hydrophone":
+            # hydrophone模式：仪器校正但不微分
+            metadata = inventory
+            self.logger.debug(f"使用hydrophone模式")
+        elif special_handling is None:
+            # 默认模式：标准地震仪处理（仪器校正+微分）
+            metadata = inventory
+            self.logger.debug(f"使用默认模式（标准地震仪处理）")
+        else:
+            # 其他模式使用完整的inventory
+            metadata = inventory
+            self.logger.warning(f"未知的special_handling值: {special_handling}，使用默认处理")
+        
+        # 创建PPSD对象
+        try:
+            ppsd = PPSD(trace.stats, metadata=metadata, **ppsd_params)
+        except Exception as e:
+            self.logger.error(f"创建PPSD对象失败 {trace.id}: {e}")
+            raise
+        
+        # 添加数据（这里skip_on_gaps参数会正确工作）
+        try:
+            # 记录添加前的状态
+            has_gaps = hasattr(trace.data, 'mask') and trace.data.mask is not False
+            if has_gaps:
+                gap_count = trace.data.mask.sum()
+                self.logger.debug(f"向PPSD添加包含 {gap_count} 个间隙样本的trace: {trace.id}")
+            
+            ppsd.add(trace)
+            
+            # 记录PPSD处理结果
+            n_segments = len(ppsd.times_processed) if hasattr(ppsd, 'times_processed') else 0
+            self.logger.debug(f"PPSD处理结果: {n_segments} 个时间段")
+            
+        except Exception as e:
+            self.logger.error(f"添加数据到PPSD失败 {trace.id}: {e}")
+            # 如果是由于skip_on_gaps引起的错误，记录更详细的信息
+            if 'gap' in str(e).lower():
+                self.logger.info(f"由于skip_on_gaps=True，跳过了包含间隙的数据段")
+            raise
+        
+        # 生成唯一的文件名（包含文件来源信息）
+        metadata_dict = {
+            'network': trace.stats.network,
+            'station': trace.stats.station,
+            'location': trace.stats.location,
+            'channel': trace.stats.channel
+        }
+        
+        # 获取原始文件名（不含路径和扩展名）
+        original_filename = Path(original_file).stem
+        
+        # 生成文件名模式
+        npz_pattern = config.get('output_npz_filename_pattern', '')
+        if not npz_pattern:
+            # 如果没有自定义模式，使用包含原始文件信息的默认模式
+            npz_filename = f"PPSD_{original_filename}.npz"
+        else:
+            # 严格按照自定义模式生成文件名
+            npz_filename = self._generate_filename(npz_pattern, metadata_dict, data_starttime=trace.stats.starttime, data_endtime=trace.stats.endtime)
+        
+        npz_path = os.path.join(output_dir, npz_filename)
+        
+        # 检查PPSD处理结果，只有存在有效时间段时才保存NPZ文件
+        n_segments = len(ppsd.times_processed) if hasattr(ppsd, 'times_processed') and ppsd.times_processed else 0
+        
+        if n_segments == 0:
+            self.logger.warning(f"PPSD处理结果为0个时间段，跳过NPZ文件保存: {trace.id}")
+            self.logger.info(f"可能原因: 1) 找不到仪器响应信息, 2) 数据质量问题, 3) 数据长度不足")
+            return
+        
+        # 保存NPZ文件
+        try:
+            ppsd.save_npz(npz_path)
+            self.logger.info(f"保存NPZ文件: {npz_path}")
+            
+            # 记录详细统计信息
+            self.logger.debug(f"NPZ文件统计 - 时间段数: {n_segments}, trace长度: {trace.stats.npts} 样本点")
+            
+            # 如果有间隙且成功处理，记录相关信息
+            if has_gaps and n_segments > 0:
+                self.logger.info(f"成功处理含间隙数据: {n_segments} 个有效时间段")
+            
+        except Exception as e:
+            self.logger.error(f"保存NPZ文件失败 {npz_path}: {e}")
+            raise
+    
+    def _extract_sensitivity_from_inventory(self, trace: Trace, inventory) -> float:
+        """从StationXML inventory中提取sensitivity值"""
+        try:
+            # 获取trace的网络、台站、位置和通道信息
+            network = trace.stats.network
+            station = trace.stats.station
+            location = trace.stats.location
+            channel = trace.stats.channel
+            starttime = trace.stats.starttime
+            
+            # 从inventory中获取响应信息
+            response = inventory.get_response(network + '.' + station + '.' + location + '.' + channel, starttime)
+            
+            # 获取总体sensitivity
+            sensitivity = response.instrument_sensitivity.value
+            
+            self.logger.debug(f"从StationXML提取sensitivity: {sensitivity} for {trace.id}")
+            return sensitivity
+            
+        except Exception as e:
+            self.logger.error(f"无法从StationXML提取sensitivity for {trace.id}: {e}")
+            raise
+    
+    def plot_ppsd(self, config: Dict):
+        """执行PPSD绘图 - 正确使用ObsPy的add_npz()方法合并文件"""
+        self.logger.info("开始PPSD绘图")
+        
+        # 获取参数
+        input_npz_dir = config.get('input_npz_dir')
+        output_dir = config.get('output_dir', './ppsd_results/plots')
+        inventory_path = config.get('inventory_path')
+        args = config.get('args', {})
+        
+        if not input_npz_dir or not os.path.exists(input_npz_dir):
+            raise ValueError(f"NPZ输入目录不存在: {input_npz_dir}")
+        
+        # 创建输出目录
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # 读取仪器响应（如果需要）
+        inventory = None
+        if inventory_path and os.path.exists(inventory_path):
+            try:
+                inventory = read_inventory(inventory_path)
+                self.logger.info(f"成功读取仪器响应文件: {inventory_path}")
+            except Exception as e:
+                self.logger.warning(f"无法读取仪器响应文件: {e}")
+        
+        # 查找NPZ文件
+            npz_files = glob.glob(os.path.join(input_npz_dir, '*.npz'))
+        if not npz_files:
+            raise ValueError(f"在 {input_npz_dir} 中未找到NPZ文件")
+        
+            self.logger.info(f"在 {input_npz_dir} 中找到 {len(npz_files)} 个NPZ文件")
+            
+        # 获取合并策略
+        npz_merge_strategy = args.get('npz_merge_strategy', 'auto')  # 'auto', 'manual', 'none'
+        
+        if npz_merge_strategy == 'none':
+            # 每个NPZ文件单独绘图
+            self._plot_individual_npz_files(npz_files, inventory, args, output_dir, config)
+        else:
+            # 按SEED ID分组并合并绘图
+            self._plot_merged_npz_files(npz_files, inventory, args, output_dir, config)
+        
+        self.logger.info("PPSD绘图完成")
+    
+    def _plot_individual_npz_files(self, npz_files: List[str], inventory, args: Dict, output_dir: str, config: Dict):
+        """每个NPZ文件单独绘图"""
+        self.logger.info("使用单独模式绘图 - 每个NPZ文件单独处理")
+        
+        plot_types = args.get('plot_type', ['standard'])
+        if isinstance(plot_types, str):
+            plot_types = [plot_types]
+            
+        for npz_file in npz_files:
+            try:
+                # 加载单个PPSD对象
+                ppsd = self._load_single_ppsd_from_npz(npz_file, inventory)
+                
+                # 生成trace ID用于文件命名
+                trace_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+                npz_basename = os.path.basename(npz_file).replace('.npz', '')
+                unique_trace_id = f"{trace_id}_{npz_basename}"
+                
+                # 为每种绘图类型生成图像
+                for plot_type in plot_types:
+                    try:
+                        self._create_plot(ppsd, plot_type, unique_trace_id, args, output_dir, config)
+                    except Exception as e:
+                        self.logger.error(f"绘图失败 {unique_trace_id} - {plot_type}: {e}")
+                        continue
+                
+            except Exception as e:
+                self.logger.error(f"加载NPZ文件失败 {npz_file}: {e}")
+                continue
+        
+    def _plot_merged_npz_files(self, npz_files: List[str], inventory, args: Dict, output_dir: str, config: Dict):
+        """按SEED ID分组并使用add_npz()方法合并绘图"""
+        self.logger.info("使用合并模式绘图 - 按SEED ID分组并合并")
+        
+        # 按SEED ID分组NPZ文件
+        seed_groups = self._group_npz_files_by_seed_id(npz_files)
+        self.logger.info(f"找到 {len(seed_groups)} 个不同的SEED ID组")
+        
+        plot_types = args.get('plot_type', ['standard'])
+        if isinstance(plot_types, str):
+            plot_types = [plot_types]
+        
+        # 为每个SEED ID组创建合并的PPSD对象
+        for seed_id, file_list in seed_groups.items():
+            try:
+                self.logger.info(f"处理SEED ID: {seed_id}，包含 {len(file_list)} 个NPZ文件")
+                
+                # 使用ObsPy的正确方法创建合并的PPSD对象
+                merged_ppsd = self._create_merged_ppsd_with_add_npz(file_list, inventory)
+                
+                # 为每种绘图类型生成图像
+                for plot_type in plot_types:
+                    try:
+                        # 使用SEED ID作为trace ID，文件名会包含"merged"标识
+                        self._create_merged_plot_for_seed(merged_ppsd, plot_type, seed_id, args, output_dir, config, len(file_list))
+                    except Exception as e:
+                        self.logger.error(f"合并绘图失败 {seed_id} - {plot_type}: {e}")
+                        continue
+        
+            except Exception as e:
+                self.logger.error(f"创建合并PPSD失败 {seed_id}: {e}")
+                continue
+    
+    def _group_npz_files_by_seed_id(self, npz_files: List[str]) -> Dict[str, List[str]]:
+        """按SEED ID分组NPZ文件"""
+        seed_groups = {}
+        
+        for npz_file in npz_files:
+            try:
+                # 尝试从文件名推断SEED ID
+                # 假设文件名格式类似: original_filename_PPSD_datetime_NET-STA-LOC-CHA.npz
+                basename = os.path.basename(npz_file)
+                
+                # 先尝试从NPZ文件中读取metadata来获取准确的SEED ID
+                try:
+                    npz_data = np.load(npz_file, allow_pickle=True)
+                    # 优先使用 id 字段
+                    if 'id' in npz_data:
+                        seed_id = str(npz_data['id'])
+                        self.logger.debug(f"从NPZ id字段获取SEED ID: {seed_id} for {basename}")
+                    elif '_network' in npz_data and '_station' in npz_data:
+                        network = str(npz_data['_network'])
+                        station = str(npz_data['_station'])
+                        location = str(npz_data['_location']) if '_location' in npz_data else ""
+                        channel = str(npz_data['_channel']) if '_channel' in npz_data else "XXX"
+                        seed_id = f"{network}.{station}.{location}.{channel}"
+                        self.logger.debug(f"从NPZ metadata获取SEED ID: {seed_id} for {basename}")
+                    else:
+                        # 回退到文件名解析
+                        seed_id = self._extract_seed_id_from_filename(basename)
+                        self.logger.debug(f"从文件名推断SEED ID: {seed_id} for {basename}")
+                except Exception as e:
+                    # 如果读取NPZ失败，回退到文件名解析
+                    seed_id = self._extract_seed_id_from_filename(basename)
+                    self.logger.debug(f"NPZ读取失败，从文件名推断SEED ID: {seed_id} for {basename} ({e})")
+                
+                if seed_id not in seed_groups:
+                    seed_groups[seed_id] = []
+                seed_groups[seed_id].append(npz_file)
+                
+            except Exception as e:
+                self.logger.warning(f"无法确定文件的SEED ID {npz_file}: {e}")
+                # 使用文件名作为唯一ID
+                unique_id = os.path.basename(npz_file).replace('.npz', '')
+                seed_groups[unique_id] = [npz_file]
+        
+        return seed_groups
+    
+    def _extract_seed_id_from_filename(self, filename: str) -> str:
+        """从文件名提取SEED ID"""
+        # 移除.npz扩展名
+        basename = filename.replace('.npz', '')
+        
+        # 尝试多种文件名格式
+        # 格式1: original_filename_PPSD_datetime_NET-STA-LOC-CHA.npz
+        if '_PPSD_' in basename:
+            parts = basename.split('_')
+            # 查找最后一个看起来像SEED ID的部分 (NET-STA-LOC-CHA)
+            for part in reversed(parts):
+                if '-' in part and len(part.split('-')) >= 3:
+                    # 将连字符替换为点号
+                    return part.replace('-', '.')
+        
+        # 格式2: PPSD_NET.STA.LOC.CHA_datetime.npz
+        if basename.startswith('PPSD_'):
+            without_prefix = basename[5:]  # 移除'PPSD_'
+            parts = without_prefix.split('_')
+            if len(parts) > 0:
+                # 第一部分应该是SEED ID
+                candidate = parts[0]
+                if candidate.count('.') >= 2:  # 至少包含network.station.location
+                    return candidate
+        
+        # 如果无法解析，返回原始文件名
+        self.logger.warning(f"无法从文件名解析SEED ID: {filename}")
+        return basename
+    
+    def _load_single_ppsd_from_npz(self, npz_file: str, inventory) -> PPSD:
+        """加载单个NPZ文件为PPSD对象"""
+        try:
+            if inventory:
+                ppsd = PPSD.load_npz(npz_file, metadata=inventory)
+            else:
+                ppsd = PPSD.load_npz(npz_file)
+            
+            # 验证PPSD对象
+            if not hasattr(ppsd, 'times_processed') or len(ppsd.times_processed) == 0:
+                self.logger.warning(f"PPSD对象没有数据: {npz_file}")
+            
+            return ppsd
+            
+        except Exception as e:
+            self.logger.error(f"加载PPSD对象失败 {npz_file}: {e}")
+            raise
+    
+    def _create_merged_ppsd_with_add_npz(self, npz_files: List[str], inventory) -> PPSD:
+        """使用ObsPy的add_npz()方法正确创建合并的PPSD对象"""
+        if not npz_files:
+            raise ValueError("没有NPZ文件可以合并")
+        
+        # 按文件名排序，确保一致的处理顺序
+        sorted_files = sorted(npz_files)
+        
+        self.logger.info(f"开始合并 {len(sorted_files)} 个NPZ文件")
+        self.logger.debug(f"文件列表: {[os.path.basename(f) for f in sorted_files]}")
+        
+        # 第一步：加载第一个文件作为基础
+        base_file = sorted_files[0]
+        try:
+            if inventory:
+                merged_ppsd = PPSD.load_npz(base_file, metadata=inventory)
+            else:
+                merged_ppsd = PPSD.load_npz(base_file)
+            
+            self.logger.info(f"基础PPSD加载成功: {os.path.basename(base_file)}")
+            self.logger.debug(f"基础PPSD包含 {len(merged_ppsd.times_processed)} 个时间段")
+            
+        except Exception as e:
+            self.logger.error(f"加载基础PPSD失败 {base_file}: {e}")
+            raise
+        
+        # 第二步：使用add_npz()方法添加其他文件
+        if len(sorted_files) > 1:
+            for additional_file in sorted_files[1:]:
+                try:
+                    self.logger.debug(f"添加NPZ文件: {os.path.basename(additional_file)}")
+                    
+                    # 记录添加前的时间段数量
+                    before_count = len(merged_ppsd.times_processed)
+                    
+                    # 使用add_npz方法添加文件
+                    merged_ppsd.add_npz(additional_file, allow_pickle=False)
+                    
+                    # 记录添加后的时间段数量
+                    after_count = len(merged_ppsd.times_processed)
+                    added_count = after_count - before_count
+                    
+                    self.logger.info(f"成功添加 {os.path.basename(additional_file)}: +{added_count} 个时间段 (总计: {after_count})")
+                    
+                except Exception as e:
+                    self.logger.error(f"添加NPZ文件失败 {additional_file}: {e}")
+                    # 继续处理其他文件，不中断整个合并过程
+                    continue
+        
+        # 验证最终结果
+        final_count = len(merged_ppsd.times_processed)
+        self.logger.info(f"NPZ合并完成: 最终包含 {final_count} 个时间段")
+        
+        if final_count == 0:
+            self.logger.warning("合并后的PPSD对象没有数据！")
+        
+        return merged_ppsd
+    
+    def _create_merged_plot_for_seed(self, ppsd: PPSD, plot_type: str, seed_id: str, args: Dict, output_dir: str, config: Dict, file_count: int):
+        """为合并的PPSD对象创建图像"""
+        self.logger.debug(f"创建合并 {plot_type} 图像: {seed_id} (来自{file_count}个文件)")
+        
+        # 检查PPSD对象是否有数据
+        if len(ppsd.times_processed) == 0:
+            self.logger.warning(f"跳过 {seed_id} - {plot_type}: 合并后的PPSD对象没有数据")
+            return
+        
+        # 生成文件名，标明是合并的结果
+        metadata = {
+            'network': ppsd.network,
+            'station': ppsd.station,
+            'location': ppsd.location,
+            'channel': ppsd.channel
+        }
+        
+        # 获取时间范围用于文件命名
+        start_time = min(ppsd.times_processed)
+        end_time = max(ppsd.times_processed)
+        
+        # 生成合并文件名
+        start_str = start_time.strftime('%Y%m%d%H%M')
+        end_str = end_time.strftime('%Y%m%d%H%M')
+        
+        filename_pattern = config.get('output_filename_pattern', '')
+        if filename_pattern:
+            # 修改模式以体现合并特性
+            modified_pattern = filename_pattern.replace('{datetime}', f'merged_{start_str}-{end_str}')
+            filename = self._generate_filename(modified_pattern, metadata, plot_type, start_time)
+        else:
+            # 使用默认的合并文件命名
+            filename = f"{plot_type}_merged_{start_str}-{end_str}_{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}_({file_count}files).png"
+        
+        filepath = os.path.join(output_dir, filename)
+        
+        # 创建图像
+        fig = plt.figure(figsize=(12, 8))
+        
+        try:
+            if plot_type == 'standard':
+                self._plot_standard(ppsd, args)
+                # 修改标题以显示合并信息
+                current_title = plt.gca().get_title()
+                new_title = f"Merged PPSD ({file_count} files, {len(ppsd.times_processed)} segments)\n{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
+                plt.title(new_title)
+            elif plot_type == 'temporal':
+                self._plot_temporal(ppsd, args)
+                plt.title(f"Merged Temporal Plot ({file_count} files)\n{seed_id}")
+            elif plot_type == 'spectrogram':
+                self._plot_spectrogram(ppsd, args)
+                plt.title(f"Merged Spectrogram ({file_count} files)\n{seed_id}")
+            else:
+                raise ValueError(f"不支持的绘图类型: {plot_type}")
+            
+            # 保存图像
+            plt.tight_layout()
+            plt.savefig(filepath, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            
+            self.logger.info(f"保存合并图像: {filename}")
+            
+        except Exception as e:
+            plt.close(fig)  # 确保图像被关闭
+            raise
+    
+    def _plot_merged_ppsd(self, ppsd_objects: Dict, plot_types: List[str], args: Dict, output_dir: str, config: Dict):
+        """合并绘图：将相同SEED ID的PPSD对象合并到一张图中"""
+        self.logger.info("使用合并模式绘图")
+        
+        # 按SEED ID分组PPSD对象
+        seed_groups = {}
+        for trace_id, ppsd in ppsd_objects.items():
+            seed_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+            if seed_id not in seed_groups:
+                seed_groups[seed_id] = []
+            seed_groups[seed_id].append((trace_id, ppsd))
+        
+        self.logger.info(f"找到 {len(seed_groups)} 个不同的SEED ID组")
+        
+        # 为每个SEED ID组和每种绘图类型生成合并图像
+        for seed_id, ppsd_list in seed_groups.items():
+            for plot_type in plot_types:
+                try:
+                    self._create_merged_plot(ppsd_list, plot_type, seed_id, args, output_dir, config)
+                except Exception as e:
+                    self.logger.error(f"合并绘图失败 {seed_id} - {plot_type}: {e}")
+                    continue
+    
+    def _create_merged_plot(self, ppsd_list: List, plot_type: str, seed_id: str, args: Dict, output_dir: str, config: Dict):
+        """创建合并的图像"""
+        self.logger.debug(f"创建合并 {plot_type} 图像: {seed_id}")
+        
+        if not ppsd_list:
+            self.logger.warning(f"跳过 {seed_id} - {plot_type}: 没有PPSD数据")
+            return
+        
+        # 使用第一个PPSD对象的元数据
+        first_ppsd = ppsd_list[0][1]
+        metadata = {
+            'network': first_ppsd.network,
+            'station': first_ppsd.station,
+            'location': first_ppsd.location,
+            'channel': first_ppsd.channel
+        }
+        
+        # 获取时间范围
+        all_times = []
+        for trace_id, ppsd in ppsd_list:
+            if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+                all_times.extend(ppsd.times_processed)
+        
+        # 生成合并文件名
+        if all_times:
+            start_time = min(all_times)
+            end_time = max(all_times)
+            # 使用时间范围生成文件名
+            filename_pattern = config.get('output_filename_pattern', '')
+            if filename_pattern:
+                # 修改文件名模式以反映合并特性
+                if '{datetime}' in filename_pattern:
+                    # 替换为时间范围
+                    start_str = start_time.strftime('%Y%m%d%H%M')
+                    end_str = end_time.strftime('%Y%m%d%H%M')
+                    filename_pattern = filename_pattern.replace('{datetime}', f'merged_{start_str}-{end_str}')
+                filename = self._generate_filename(filename_pattern, metadata, plot_type, start_time)
+            else:
+                # 默认合并文件名
+                start_str = start_time.strftime('%Y%m%d%H%M')
+                end_str = end_time.strftime('%Y%m%d%H%M')
+                filename = f"{plot_type}_merged_{start_str}-{end_str}_{seed_id}.png"
+        else:
+            # 如果没有时间信息，使用简单的合并文件名
+            filename = f"{plot_type}_longterm_{seed_id}.png"
+        
+        filepath = os.path.join(output_dir, filename)
+        
+        # 创建图像
+        fig = plt.figure(figsize=(12, 8))
+        
+        if plot_type == 'standard':
+            self._plot_merged_standard(ppsd_list, args)
+        elif plot_type == 'temporal':
+            self._plot_merged_temporal(ppsd_list, args)
+        elif plot_type == 'spectrogram':
+            self._plot_merged_spectrogram(ppsd_list, args)
+        else:
+            raise ValueError(f"不支持的绘图类型: {plot_type}")
+        
+        # 保存图像
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        self.logger.info(f"保存合并图像: {filepath}")
+    
+    def _merge_ppsd_objects(self, ppsd_objects: List[PPSD]) -> PPSD:
+        """合并多个PPSD对象"""
+        if not ppsd_objects:
+            raise ValueError("没有PPSD对象可以合并")
+        
+        if len(ppsd_objects) == 1:
+            return ppsd_objects[0]
+        
+        # 使用第一个PPSD作为基础
+        base_ppsd = ppsd_objects[0]
+        
+        # 创建一个新的PPSD对象，复制第一个的设置
+        merged_ppsd = PPSD(
+            stats=base_ppsd.stats,
+            metadata=base_ppsd.metadata,
+            ppsd_length=base_ppsd.ppsd_length,
+            overlap=base_ppsd.overlap,
+            period_smoothing_width_octaves=base_ppsd.period_smoothing_width_octaves,
+            period_step_octaves=base_ppsd.period_step_octaves,
+            period_limits=base_ppsd.period_limits,
+            db_bins=base_ppsd.db_bins,
+            special_handling=base_ppsd.special_handling,
+            skip_on_gaps=base_ppsd.skip_on_gaps
+        )
+        
+        # 合并所有PPSD的数据
+        for ppsd in ppsd_objects:
+            # 将每个PPSD的直方图数据添加到合并的PPSD中
+            if hasattr(ppsd, '_binned_psds') and len(ppsd._binned_psds) > 0:
+                for binned_psd in ppsd._binned_psds:
+                    merged_ppsd._binned_psds.append(binned_psd)
+            
+            # 合并时间信息
+            if hasattr(ppsd, 'times_processed'):
+                merged_ppsd.times_processed.extend(ppsd.times_processed)
+            
+            # 合并其他相关数据
+            if hasattr(ppsd, 'times_data'):
+                merged_ppsd.times_data.extend(ppsd.times_data)
+        
+        # 重新计算直方图
+        if hasattr(merged_ppsd, '_calculate_histogram'):
+            merged_ppsd._calculate_histogram()
+        
+        return merged_ppsd
+    
+    def _plot_merged_standard(self, ppsd_list: List, args: Dict):
+        """绘制合并的标准PPSD图"""
+        if not ppsd_list:
+            return
+        
+        # 准备绘图参数
+        plot_params = {
+            'period_lim': args.get('period_lim', [0.01, 1000.0]),
+            'show_coverage': args.get('show_coverage', True)
+        }
+        
+        # 添加配色方案支持
+        if 'standard_cmap' in args:
+            cmap_name = args['standard_cmap']
+            # 首先尝试从自定义配色方案中获取
+            if CUSTOM_COLORMAPS_AVAILABLE:
+                custom_cmap = get_custom_colormap(cmap_name)
+                if custom_cmap is not None:
+                    plot_params['cmap'] = custom_cmap
+                else:
+                    # 如果不是自定义配色方案，则使用matplotlib标准配色方案
+                    plot_params['cmap'] = plt.get_cmap(cmap_name)
+            else:
+                plot_params['cmap'] = plt.get_cmap(cmap_name)
+        
+        # 检查是否需要自定义百分位数线样式
+        custom_percentile_style = (
+            'percentile_color' in args or 
+            'percentile_linewidth' in args or
+            'percentile_linestyle' in args or
+            'percentile_alpha' in args
+        )
+        
+        # 检查是否需要自定义皮特森曲线样式
+        custom_peterson_style = (
+            'peterson_linewidth' in args or
+            'peterson_linestyle' in args or
+            'peterson_alpha' in args or
+            'peterson_nlnm_color' in args or
+            'peterson_nhnm_color' in args
+        )
+        
+        # 检查是否需要自定义mode和mean线样式
+        custom_mode_style = (
+            'mode_color' in args or 
+            'mode_linewidth' in args or
+            'mode_linestyle' in args or
+            'mode_alpha' in args
+        )
+        
+        custom_mean_style = (
+            'mean_color' in args or 
+            'mean_linewidth' in args or
+            'mean_linestyle' in args or
+            'mean_alpha' in args
+        )
+        
+        # 如果需要自定义皮特森曲线样式，先不显示噪声模型
+        if custom_peterson_style and args.get('show_noise_models', True):
+            plot_params['show_noise_models'] = False
+            show_custom_peterson = True
+        else:
+            # 使用标准皮特森曲线
+            plot_params['show_noise_models'] = args.get('show_noise_models', True)
+            show_custom_peterson = False
+        
+        # 如果需要自定义mode和mean线样式，先不显示
+        if custom_mode_style and args.get('show_mode', False):
+            plot_params['show_mode'] = False
+            show_custom_mode = True
+        else:
+            # 使用标准mode线
+            plot_params['show_mode'] = args.get('show_mode', False)
+            show_custom_mode = False
+            
+        if custom_mean_style and args.get('show_mean', False):
+            plot_params['show_mean'] = False
+            show_custom_mean = True
+        else:
+            # 使用标准mean线
+            plot_params['show_mean'] = args.get('show_mean', False)
+            show_custom_mean = False
+        
+        # 如果需要自定义百分位数线样式，先不显示百分位数线
+        if custom_percentile_style and args.get('show_percentiles', False):
+            plot_params['show_percentiles'] = False
+            show_custom_percentiles = True
+            percentiles = args.get('percentiles', [10, 50, 90])
+        else:
+            # 使用标准百分位数线
+            if 'show_percentiles' in args:
+                plot_params['show_percentiles'] = args['show_percentiles']
+            if 'percentiles' in args:
+                plot_params['percentiles'] = args['percentiles']
+            show_custom_percentiles = False
+        
+        # 添加其他标准图参数（只包含ObsPy支持的参数）
+        # 注意：如果已经设置了自定义样式，就不要覆盖这些设置
+        if 'show_mode' in args and not custom_mode_style:
+            plot_params['show_mode'] = args['show_mode']
+        if 'show_mean' in args and not custom_mean_style:
+            plot_params['show_mean'] = args['show_mean']
+        if 'xaxis_frequency' in args:
+            plot_params['xaxis_frequency'] = args['xaxis_frequency']
+        if 'cumulative_plot' in args:
+            plot_params['cumulative'] = args['cumulative_plot']
+        
+        # 如果只有一个PPSD，直接绘制
+        if len(ppsd_list) == 1:
+            main_ppsd = ppsd_list[0][1]
+            main_ppsd.plot(**plot_params)
+            
+            # 如果启用了show_coverage，修改coverage横条的透明度
+            if args.get('show_coverage', True):
+                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
+                self._modify_coverage_transparency(coverage_alpha)
+            
+            # 如果需要自定义皮特森曲线样式，手动添加
+            if show_custom_peterson:
+                self._add_custom_peterson_curves(args)
+            
+            # 如果需要自定义百分位数线样式，手动添加
+            if show_custom_percentiles:
+                self._add_custom_percentile_lines(main_ppsd, percentiles, args)
+            
+            # 如果需要自定义mode线样式，手动添加
+            if show_custom_mode:
+                self._add_custom_mode_line(main_ppsd, args)
+            
+            # 如果需要自定义mean线样式，手动添加
+            if show_custom_mean:
+                self._add_custom_mean_line(main_ppsd, args)
+            
+            return
+        
+        # 多个PPSD的情况：创建一个新的合并PPSD对象
+        try:
+            merged_ppsd = self._merge_ppsd_objects([ppsd[1] for ppsd in ppsd_list])
+            merged_ppsd.plot(**plot_params)
+            
+            # 如果启用了show_coverage，修改coverage横条的透明度
+            if args.get('show_coverage', True):
+                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
+                self._modify_coverage_transparency(coverage_alpha)
+            
+            # 如果需要自定义皮特森曲线样式，手动添加
+            if show_custom_peterson:
+                self._add_custom_peterson_curves(args)
+            
+            # 如果需要自定义百分位数线样式，手动添加
+            if show_custom_percentiles:
+                self._add_custom_percentile_lines(merged_ppsd, percentiles, args)
+            
+            # 如果需要自定义mode线样式，手动添加
+            if show_custom_mode:
+                self._add_custom_mode_line(merged_ppsd, args)
+            
+            # 如果需要自定义mean线样式，手动添加
+            if show_custom_mean:
+                self._add_custom_mean_line(merged_ppsd, args)
+            
+            # 在标题中注明合并信息
+            plt.title(f"Merged PPSD ({len(ppsd_list)} time periods)\n"
+                     f"{merged_ppsd.network}.{merged_ppsd.station}."
+                     f"{merged_ppsd.location}.{merged_ppsd.channel}")
+                     
+        except Exception as e:
+            self.logger.warning(f"PPSD合并失败，使用第一个PPSD: {e}")
+            # 回退到使用第一个PPSD
+            main_ppsd = ppsd_list[0][1]
+            main_ppsd.plot(**plot_params)
+            
+            # 如果启用了show_coverage，修改coverage横条的透明度
+            if args.get('show_coverage', True):
+                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
+                self._modify_coverage_transparency(coverage_alpha)
+            
+            # 如果需要自定义皮特森曲线样式，手动添加
+            if show_custom_peterson:
+                self._add_custom_peterson_curves(args)
+                
+            # 如果需要自定义百分位数线样式，手动添加
+            if show_custom_percentiles:
+                self._add_custom_percentile_lines(main_ppsd, percentiles, args)
+            
+            # 如果需要自定义mode线样式，手动添加
+            if show_custom_mode:
+                self._add_custom_mode_line(main_ppsd, args)
+            
+            # 如果需要自定义mean线样式，手动添加
+            if show_custom_mean:
+                self._add_custom_mean_line(main_ppsd, args)
+                
+            plt.title(f"PPSD (merge failed, showing first of {len(ppsd_list)})\n"
+                     f"{main_ppsd.network}.{main_ppsd.station}."
+                     f"{main_ppsd.location}.{main_ppsd.channel}")
+    
+    def _plot_merged_temporal(self, ppsd_list: List, args: Dict):
+        """绘制合并的时间演化图"""
+        if not ppsd_list:
+            return
+        
+        periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
+        
+        # 对于时间演化图，合并多个PPSD的时间序列数据
+        # 这里使用第一个PPSD作为基础
+        main_ppsd = ppsd_list[0][1]
+        main_ppsd.plot_temporal(periods)
+        
+        # 如果有多个PPSD，在标题中注明
+        if len(ppsd_list) > 1:
+            plt.title(f"Merged Temporal Plot ({len(ppsd_list)} time periods)\n{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}")
+    
+    def _plot_merged_spectrogram(self, ppsd_list: List, args: Dict):
+        """绘制合并的频谱图"""
+        if not ppsd_list:
+            return
+        
+        plot_params = {
+            'cmap': args.get('spectrogram_cmap', 'viridis')
+        }
+        
+        if 'clim' in args:
+            plot_params['clim'] = args['clim']
+        
+        # 对于频谱图，使用第一个PPSD
+        main_ppsd = ppsd_list[0][1]
+        main_ppsd.plot_spectrogram(**plot_params)
+        
+        # 如果有多个PPSD，在标题中注明
+        if len(ppsd_list) > 1:
+            plt.title(f"Merged Spectrogram ({len(ppsd_list)} time periods)\n{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}")
+    
+    def _create_plot(self, ppsd: PPSD, plot_type: str, trace_id: str, args: Dict, output_dir: str, config: Dict):
+        """创建单个图像"""
+        self.logger.debug(f"创建 {plot_type} 图像: {trace_id}")
+        
+        # 检查PPSD对象是否有数据
+        if len(ppsd.times_processed) == 0:
+            self.logger.warning(f"跳过 {trace_id} - {plot_type}: PPSD对象没有数据")
+            return
+        
+        # 生成文件名
+        metadata = {
+            'network': ppsd.network,
+            'station': ppsd.station,
+            'location': ppsd.location,
+            'channel': ppsd.channel
+        }
+        
+        # 尝试从PPSD对象获取数据开始时间
+        data_starttime = None
+        if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+            # 使用第一个处理时间段的开始时间
+            data_starttime = min(ppsd.times_processed)
+        
+        filename_pattern = config.get('output_filename_pattern', '')
+        filename = self._generate_filename(filename_pattern, metadata, plot_type, data_starttime)
+        filepath = os.path.join(output_dir, filename)
+        
+        # 创建图像
+        fig = plt.figure(figsize=(12, 8))
+        
+        if plot_type == 'standard':
+            self._plot_standard(ppsd, args)
+        elif plot_type == 'temporal':
+            self._plot_temporal(ppsd, args)
+        elif plot_type == 'spectrogram':
+            self._plot_spectrogram(ppsd, args)
+        else:
+            raise ValueError(f"不支持的绘图类型: {plot_type}")
+        
+        # 保存图像
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        
+        self.logger.info(f"保存图像: {filepath}")
+    
+    def _plot_standard(self, ppsd: PPSD, args: Dict):
+        """绘制标准PPSD图"""
+        # 使用最基本的参数避免兼容性问题
+        plot_params = {
+            'period_lim': args.get('period_lim', [0.01, 1000.0]),
+            'show_coverage': args.get('show_coverage', True)
+        }
+        
+        # 添加配色方案支持
+        if 'standard_cmap' in args:
+            cmap_name = args['standard_cmap']
+            # 首先尝试从自定义配色方案中获取
+            if CUSTOM_COLORMAPS_AVAILABLE:
+                custom_cmap = get_custom_colormap(cmap_name)
+                if custom_cmap is not None:
+                    plot_params['cmap'] = custom_cmap
+                else:
+                    # 如果不是自定义配色方案，则使用matplotlib标准配色方案
+                    plot_params['cmap'] = plt.get_cmap(cmap_name)
+            else:
+                plot_params['cmap'] = plt.get_cmap(cmap_name)
+        
+        # 检查是否需要自定义百分位数线样式
+        custom_percentile_style = (
+            'percentile_color' in args or 
+            'percentile_linewidth' in args or
+            'percentile_linestyle' in args or
+            'percentile_alpha' in args
+        )
+        
+        # 检查是否需要自定义皮特森曲线样式
+        custom_peterson_style = (
+            'peterson_linewidth' in args or
+            'peterson_linestyle' in args or
+            'peterson_alpha' in args or
+            'peterson_nlnm_color' in args or
+            'peterson_nhnm_color' in args
+        )
+        
+        # 检查是否需要自定义mode和mean线样式
+        custom_mode_style = (
+            'mode_color' in args or 
+            'mode_linewidth' in args or
+            'mode_linestyle' in args or
+            'mode_alpha' in args
+        )
+        
+        custom_mean_style = (
+            'mean_color' in args or 
+            'mean_linewidth' in args or
+            'mean_linestyle' in args or
+            'mean_alpha' in args
+        )
+        
+        # 如果需要自定义皮特森曲线样式，先不显示噪声模型
+        if custom_peterson_style and args.get('show_noise_models', True):
+            plot_params['show_noise_models'] = False
+            show_custom_peterson = True
+        else:
+            # 使用标准皮特森曲线
+            plot_params['show_noise_models'] = args.get('show_noise_models', True)
+            show_custom_peterson = False
+        
+        # 如果需要自定义mode和mean线样式，先不显示
+        if custom_mode_style and args.get('show_mode', False):
+            plot_params['show_mode'] = False
+            show_custom_mode = True
+        else:
+            # 使用标准mode线
+            plot_params['show_mode'] = args.get('show_mode', False)
+            show_custom_mode = False
+            
+        if custom_mean_style and args.get('show_mean', False):
+            plot_params['show_mean'] = False
+            show_custom_mean = True
+        else:
+            # 使用标准mean线
+            plot_params['show_mean'] = args.get('show_mean', False)
+            show_custom_mean = False
+        
+        # 如果需要自定义百分位数线样式，先不显示百分位数线
+        if custom_percentile_style and args.get('show_percentiles', False):
+            plot_params['show_percentiles'] = False
+            show_custom_percentiles = True
+            percentiles = args.get('percentiles', [10, 50, 90])
+        else:
+            # 使用标准百分位数线
+            if 'show_percentiles' in args:
+                plot_params['show_percentiles'] = args['show_percentiles']
+            if 'percentiles' in args:
+                plot_params['percentiles'] = args['percentiles']
+            show_custom_percentiles = False
+        
+        # 添加其他标准图参数（只包含ObsPy支持的参数）
+        # 注意：如果已经设置了自定义样式，就不要覆盖这些设置
+        if 'show_mode' in args and not custom_mode_style:
+            plot_params['show_mode'] = args['show_mode']
+        if 'show_mean' in args and not custom_mean_style:
+            plot_params['show_mean'] = args['show_mean']
+        if 'xaxis_frequency' in args:
+            plot_params['xaxis_frequency'] = args['xaxis_frequency']
+        if 'cumulative_plot' in args:
+            plot_params['cumulative'] = args['cumulative_plot']
+        
+        # 绘制PPSD图
+        ppsd.plot(**plot_params)
+        
+        # 如果启用了show_coverage，修改coverage横条的透明度
+        if args.get('show_coverage', True):
+            coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
+            self._modify_coverage_transparency(coverage_alpha)
+        
+        # 如果需要自定义皮特森曲线样式，手动添加
+        if show_custom_peterson:
+            self._add_custom_peterson_curves(args)
+        
+        # 如果需要自定义百分位数线样式，手动添加
+        if show_custom_percentiles:
+            self._add_custom_percentile_lines(ppsd, percentiles, args)
+        
+        # 如果需要自定义mode线样式，手动添加
+        if show_custom_mode:
+            self._add_custom_mode_line(ppsd, args)
+        
+        # 如果需要自定义mean线样式，手动添加
+        if show_custom_mean:
+            self._add_custom_mean_line(ppsd, args)
+    
+    def _add_custom_percentile_lines(self, ppsd: PPSD, percentiles: list, args: Dict):
+        """添加自定义样式的百分位数线"""
+        try:
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            # 找到主要的PPSD绘图区域（通常是最大的axes或包含PPSD数据的axes）
+            main_ax = None
+            if len(axes) == 1:
+                # 只有一个axes，直接使用
+                main_ax = axes[0]
+            else:
+                # 多个axes的情况，找到主要的PPSD绘图区域
+                # 主要的PPSD axes通常有以下特征：
+                # 1. Y轴标签包含"Power"或"dB"
+                # 2. X轴标签包含"Period"或"Frequency"
+                # 3. 位置较大（不是小的coverage子图）
+                for ax in axes:
+                    ylabel = ax.get_ylabel().lower()
+                    xlabel = ax.get_xlabel().lower()
+                    # 检查是否是主要的PPSD绘图区域
+                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
+                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
+                        main_ax = ax
+                        break
+                
+                # 如果没有找到，使用第一个axes
+                if main_ax is None:
+                    main_ax = axes[0]
+            
+            # 获取自定义样式参数
+            percentile_color = args.get('percentile_color', 'lightgray')
+            percentile_linewidth = args.get('percentile_linewidth', 1.0)
+            percentile_linestyle = args.get('percentile_linestyle', '-')
+            percentile_alpha = args.get('percentile_alpha', 0.8)
+            
+            # 检查X轴是否显示频率
+            xaxis_frequency = args.get('xaxis_frequency', False)
+            
+            self.logger.info(f"添加自定义百分位数线: {percentiles}")
+            self.logger.info(f"样式参数: color={percentile_color}, linewidth={percentile_linewidth}, linestyle={percentile_linestyle}, alpha={percentile_alpha}")
+            self.logger.info(f"X轴模式: {'频率' if xaxis_frequency else '周期'}")
+            self.logger.info(f"使用axes: {main_ax}, ylabel='{main_ax.get_ylabel()}', xlabel='{main_ax.get_xlabel()}'")
+            
+            # 绘制每个百分位数线
+            for percentile in percentiles:
+                try:
+                    # 使用PPSD的get_percentile方法获取百分位数数据
+                    periods, psd_values = ppsd.get_percentile(percentile)
+                    
+                    self.logger.debug(f"第{percentile}百分位数数据: periods长度={len(periods)}, psd_values长度={len(psd_values)}")
+                    
+                    # 根据xaxis_frequency设置确定X轴数据
+                    if xaxis_frequency:
+                        # 如果X轴显示频率，将周期转换为频率
+                        x_data = 1.0 / periods
+                        x_label = "频率"
+                    else:
+                        # 如果X轴显示周期，直接使用周期数据
+                        x_data = periods
+                        x_label = "周期"
+                    
+                    # 绘制自定义样式的百分位数线
+                    line = main_ax.plot(x_data, psd_values,
+                                  color=percentile_color,
+                                  linewidth=percentile_linewidth,
+                                  linestyle=percentile_linestyle,
+                                  alpha=percentile_alpha,
+                                  zorder=100,  # 确保线条在最前景，高于数据覆盖度显示
+                                  label=f'{percentile}th percentile')[0]
+                    
+                    self.logger.info(f"成功添加百分位数线 ({x_label}坐标)")
+                    
+                except Exception as e:
+                    self.logger.error(f"无法绘制第{percentile}百分位数线: {e}")
+            
+        except Exception as e:
+            self.logger.error(f"添加自定义百分位数线失败: {e}")
+    
+    def _add_custom_peterson_curves(self, args: Dict):
+        """添加自定义样式的皮特森曲线（NLNM和NHNM）"""
+        try:
+            from obspy.signal.spectral_estimation import get_nlnm, get_nhnm
+            
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            # 找到主要的PPSD绘图区域（通常是最大的axes或包含PPSD数据的axes）
+            main_ax = None
+            if len(axes) == 1:
+                # 只有一个axes，直接使用
+                main_ax = axes[0]
+            else:
+                # 多个axes的情况，找到主要的PPSD绘图区域
+                # 主要的PPSD axes通常有以下特征：
+                # 1. Y轴标签包含"Power"或"dB"
+                # 2. X轴标签包含"Period"或"Frequency"
+                # 3. 位置较大（不是小的coverage子图）
+                for ax in axes:
+                    ylabel = ax.get_ylabel().lower()
+                    xlabel = ax.get_xlabel().lower()
+                    # 检查是否是主要的PPSD绘图区域
+                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
+                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
+                        main_ax = ax
+                        break
+                
+                # 如果没有找到，使用第一个axes
+                if main_ax is None:
+                    main_ax = axes[0]
+            
+            # 获取自定义样式参数
+            peterson_linewidth = args.get('peterson_linewidth', 1.5)
+            peterson_linestyle = args.get('peterson_linestyle', '-')
+            peterson_alpha = args.get('peterson_alpha', 0.9)
+            
+            # 获取NLNM和NHNM颜色设置（必须单独指定）
+            nlnm_color = args.get('peterson_nlnm_color', 'black')
+            nhnm_color = args.get('peterson_nhnm_color', 'black')
+            
+            # 检查X轴是否显示频率
+            xaxis_frequency = args.get('xaxis_frequency', False)
+            
+            self.logger.info("添加自定义皮特森曲线")
+            self.logger.info(f"X轴模式: {'频率' if xaxis_frequency else '周期'}")
+            self.logger.info(f"使用axes: {main_ax}, ylabel='{main_ax.get_ylabel()}', xlabel='{main_ax.get_xlabel()}'")
+            self.logger.info(f"坐标轴范围: X={main_ax.get_xlim()}, Y={main_ax.get_ylim()}")
+            self.logger.info(f"NLNM样式: color={nlnm_color}, linewidth={peterson_linewidth}, linestyle={peterson_linestyle}, alpha={peterson_alpha}")
+            self.logger.info(f"NHNM样式: color={nhnm_color}, linewidth={peterson_linewidth}, linestyle={peterson_linestyle}, alpha={peterson_alpha}")
+            
+            # 获取NLNM数据并绘制
+            try:
+                nlnm_periods, nlnm_psd = get_nlnm()
+                
+                if xaxis_frequency:
+                    # 如果X轴显示频率，将周期转换为频率
+                    nlnm_x_data = 1.0 / nlnm_periods
+                    x_label = "频率"
+                else:
+                    # 如果X轴显示周期，直接使用周期数据
+                    nlnm_x_data = nlnm_periods
+                    x_label = "周期"
+                
+                main_ax.plot(nlnm_x_data, nlnm_psd,
+                       color=nlnm_color,
+                       linewidth=peterson_linewidth,
+                       linestyle=peterson_linestyle,
+                       alpha=peterson_alpha,
+                       zorder=100,  # 确保在最前景，高于数据覆盖度显示
+                       label='NLNM')
+                self.logger.info(f"成功添加NLNM曲线 ({x_label}坐标)")
+            except Exception as e:
+                self.logger.error(f"无法绘制NLNM曲线: {e}")
+            
+            # 获取NHNM数据并绘制
+            try:
+                nhnm_periods, nhnm_psd = get_nhnm()
+                
+                if xaxis_frequency:
+                    # 如果X轴显示频率，将周期转换为频率
+                    nhnm_x_data = 1.0 / nhnm_periods
+                    x_label = "频率"
+                else:
+                    # 如果X轴显示周期，直接使用周期数据
+                    nhnm_x_data = nhnm_periods
+                    x_label = "周期"
+                
+                main_ax.plot(nhnm_x_data, nhnm_psd,
+                       color=nhnm_color,
+                       linewidth=peterson_linewidth,
+                       linestyle=peterson_linestyle,
+                       alpha=peterson_alpha,
+                       zorder=100,  # 确保在最前景，高于数据覆盖度显示
+                       label='NHNM')
+                self.logger.info(f"成功添加NHNM曲线 ({x_label}坐标)")
+            except Exception as e:
+                self.logger.error(f"无法绘制NHNM曲线: {e}")
+                
+        except Exception as e:
+            self.logger.error(f"添加自定义皮特森曲线失败: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+    
+    def _add_custom_mode_line(self, ppsd: PPSD, args: Dict):
+        """添加自定义样式的众数线"""
+        try:
+            import numpy as np
+            
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            # 找到主要的PPSD绘图区域
+            main_ax = None
+            if len(axes) == 1:
+                main_ax = axes[0]
+            else:
+                for ax in axes:
+                    ylabel = ax.get_ylabel().lower()
+                    xlabel = ax.get_xlabel().lower()
+                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
+                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
+                        main_ax = ax
+                        break
+                if main_ax is None:
+                    main_ax = axes[0]
+            
+            # 获取自定义样式参数
+            mode_color = args.get('mode_color', 'orange')
+            mode_linewidth = args.get('mode_linewidth', 2.0)
+            mode_linestyle = args.get('mode_linestyle', '-')
+            mode_alpha = args.get('mode_alpha', 0.9)
+            
+            self.logger.info("添加自定义众数线")
+            self.logger.info(f"样式参数: color={mode_color}, linewidth={mode_linewidth}, linestyle={mode_linestyle}, alpha={mode_alpha}")
+            
+            # 使用ObsPy的get_mode方法获取正确的众数数据
+            try:
+                periods, mode_values = ppsd.get_mode()
+                
+                self.logger.debug(f"众数数据: periods长度={len(periods)}, mode_values长度={len(mode_values)}")
+                self.logger.debug(f"周期范围: {periods.min():.4f} - {periods.max():.1f} 秒")
+                self.logger.debug(f"众数dB范围: {mode_values.min():.1f} - {mode_values.max():.1f}")
+                
+                # 检查X轴是否显示频率
+                xaxis_frequency = args.get('xaxis_frequency', False)
+                
+                if xaxis_frequency:
+                    # 如果X轴显示频率，将周期转换为频率
+                    x_data = 1.0 / periods
+                    x_label = "频率"
+                else:
+                    # 如果X轴显示周期，直接使用周期数据
+                    x_data = periods
+                    x_label = "周期"
+                
+                # 过滤掉NaN值
+                valid_mask = ~(np.isnan(mode_values) | np.isnan(x_data))
+                valid_count = np.sum(valid_mask)
+                
+                self.logger.debug(f"有效众数点数: {valid_count}/{len(mode_values)}")
+                
+                if valid_count > 0:
+                    main_ax.plot(x_data[valid_mask], mode_values[valid_mask],
+                                color=mode_color,
+                                linewidth=mode_linewidth,
+                                linestyle=mode_linestyle,
+                                alpha=mode_alpha,
+                                label='Mode (众数)',
+                                zorder=999)  # 使用非常高的zorder确保在最顶层
+                    
+                    # 调试信息：打印绘制的数据范围
+                    self.logger.info(f"众数线数据范围: {x_label} {x_data[valid_mask].min():.4f}-{x_data[valid_mask].max():.1f}, dB {mode_values[valid_mask].min():.1f}-{mode_values[valid_mask].max():.1f}")
+                    self.logger.info(f"成功添加众数线，包含 {valid_count} 个数据点")
+                else:
+                    self.logger.warning("众数线数据全为NaN，跳过绘制")
+                    
+            except Exception as mode_error:
+                self.logger.warning(f"使用get_mode()方法失败: {mode_error}")
+                self.logger.info("回退到使用ObsPy原生众数线")
+                
+                # 如果get_mode失败，建议用户使用ObsPy原生的show_mode=True
+                self.logger.info("建议在配置中使用 show_mode=true 而不是自定义众数线样式")
+                
+        except Exception as e:
+            self.logger.error(f"添加自定义众数线失败: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+    
+    def _add_custom_mean_line(self, ppsd: PPSD, args: Dict):
+        """添加自定义样式的均值线"""
+        try:
+            import numpy as np
+            
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            # 找到主要的PPSD绘图区域
+            main_ax = None
+            if len(axes) == 1:
+                main_ax = axes[0]
+            else:
+                for ax in axes:
+                    ylabel = ax.get_ylabel().lower()
+                    xlabel = ax.get_xlabel().lower()
+                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
+                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
+                        main_ax = ax
+                        break
+                if main_ax is None:
+                    main_ax = axes[0]
+            
+            # 获取自定义样式参数
+            mean_color = args.get('mean_color', 'green')
+            mean_linewidth = args.get('mean_linewidth', 2.0)
+            mean_linestyle = args.get('mean_linestyle', '-')
+            mean_alpha = args.get('mean_alpha', 0.9)
+            
+            self.logger.info("添加自定义均值线")
+            self.logger.info(f"样式参数: color={mean_color}, linewidth={mean_linewidth}, linestyle={mean_linestyle}, alpha={mean_alpha}")
+            
+            # 使用ObsPy的get_mean方法获取正确的均值数据
+            try:
+                periods, mean_values = ppsd.get_mean()
+                
+                self.logger.debug(f"均值数据: periods长度={len(periods)}, mean_values长度={len(mean_values)}")
+                self.logger.debug(f"周期范围: {periods.min():.4f} - {periods.max():.1f} 秒")
+                self.logger.debug(f"均值dB范围: {mean_values.min():.1f} - {mean_values.max():.1f}")
+                
+                # 检查X轴是否显示频率
+                xaxis_frequency = args.get('xaxis_frequency', False)
+                
+                if xaxis_frequency:
+                    # 如果X轴显示频率，将周期转换为频率
+                    x_data = 1.0 / periods
+                    x_label = "频率"
+                else:
+                    # 如果X轴显示周期，直接使用周期数据
+                    x_data = periods
+                    x_label = "周期"
+                
+                # 过滤掉NaN值
+                valid_mask = ~(np.isnan(mean_values) | np.isnan(x_data))
+                valid_count = np.sum(valid_mask)
+                
+                self.logger.debug(f"有效均值点数: {valid_count}/{len(mean_values)}")
+                
+                if valid_count > 0:
+                    main_ax.plot(x_data[valid_mask], mean_values[valid_mask],
+                                color=mean_color,
+                                linewidth=mean_linewidth,
+                                linestyle=mean_linestyle,
+                                alpha=mean_alpha,
+                                label='Mean (均值)',
+                                zorder=998)  # 使用高的zorder但比众数线低一点
+                    
+                    # 调试信息：打印绘制的数据范围
+                    self.logger.info(f"均值线数据范围: {x_label} {x_data[valid_mask].min():.4f}-{x_data[valid_mask].max():.1f}, dB {mean_values[valid_mask].min():.1f}-{mean_values[valid_mask].max():.1f}")
+                    self.logger.info(f"成功添加均值线，包含 {valid_count} 个数据点")
+                else:
+                    self.logger.warning("均值线数据全为NaN，跳过绘制")
+                    
+            except Exception as mean_error:
+                self.logger.warning(f"使用get_mean()方法失败: {mean_error}")
+                self.logger.info("回退到使用ObsPy原生均值线")
+                
+                # 如果get_mean失败，建议用户使用ObsPy原生的show_mean=True
+                self.logger.info("建议在配置中使用 show_mean=true 而不是自定义均值线样式")
+                
+        except Exception as e:
+            self.logger.error(f"添加自定义均值线失败: {e}")
+            import traceback
+            self.logger.debug(traceback.format_exc())
+    
+    def _plot_temporal(self, ppsd: PPSD, args: Dict):
+        """绘制时间演化图"""
+        periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
+        
+        # 使用最简单的参数调用
+        ppsd.plot_temporal(periods)
+    
+    def _plot_spectrogram(self, ppsd: PPSD, args: Dict):
+        """绘制频谱图"""
+        plot_params = {
+            'cmap': args.get('spectrogram_cmap', 'viridis')
+        }
+        
+        if 'clim' in args:
+            plot_params['clim'] = args['clim']
+        
+        ppsd.plot_spectrogram(**plot_params)
+    
+    def _modify_coverage_transparency(self, alpha: float = 0.5):
+        """修改数据覆盖度显示的透明度
+        
+        Parameters:
+            alpha: 透明度值 (0.0-1.0)，默认0.5表示50%透明度
+        """
+        try:
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            coverage_elements_modified = 0
+            
+            # 遍历所有axes，寻找coverage相关的图形元素
+            for ax in axes:
+                # 查找coverage相关的matplotlib patch对象
+                for patch in ax.patches:
+                    # 直接修改所有patch的透明度（包括Polygon、Rectangle等）
+                    # coverage的patch通常位于图的上方区域
+                    try:
+                        patch.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改patch透明度: {e}")
+                        
+                # 也检查是否有通过collections添加的coverage元素
+                for collection in ax.collections:
+                    try:
+                        # 修改collection的透明度
+                        collection.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改collection透明度: {e}")
+                        
+                # 检查Line2D对象（可能是coverage的线条）
+                for line in ax.get_lines():
+                    # 检查是否是coverage相关的线条（通常y坐标较高）
+                    try:
+                        ydata = line.get_ydata()
+                        if len(ydata) > 0 and hasattr(line, '_original_alpha'):
+                            # 这是我们之前处理过的线条，跳过
+                            continue
+                        # 为coverage线条设置透明度
+                        # 保存原始透明度
+                        line._original_alpha = line.get_alpha() or 1.0
+                        line.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改line透明度: {e}")
+            
+            if coverage_elements_modified > 0:
+                self.logger.info(f"成功设置数据覆盖度透明度为 {alpha}，修改了 {coverage_elements_modified} 个元素")
+            else:
+                self.logger.warning("未找到可修改的数据覆盖度元素")
+            
+        except Exception as e:
+            self.logger.warning(f"修改数据覆盖度透明度失败: {e}")
+    
+    def _is_grouped_config_structure(self, config: Dict) -> bool:
+        """检查配置文件是否为分组结构
+        
+        检查配置是否包含分组配置的特征结构：
+        - [global] 节
+        - [paths] 节  
+        - [standard] 或 [standard.percentiles] 等嵌套节
+        """
+        # 检查是否包含分组配置的特征节
+        has_global = 'global' in config
+        has_paths = 'paths' in config
+        has_plotting = 'plotting' in config
+        has_standard = 'standard' in config
+        
+        # 检查是否有嵌套结构
+        has_nested_structure = False
+        if has_standard:
+            standard_section = config['standard']
+            if isinstance(standard_section, dict):
+                # 检查是否有 percentiles, peterson 等子节
+                has_nested_structure = (
+                    'percentiles' in standard_section or
+                    'peterson' in standard_section or
+                    'mode' in standard_section or
+                    'mean' in standard_section
+                )
+        
+        # 如果有多个特征节存在，认为是分组配置
+        structure_score = sum([has_global, has_paths, has_plotting, has_standard, has_nested_structure])
+        
+        return structure_score >= 3  # 至少有3个特征才认为是分组配置
+    
+    def run(self):
+        """运行主处理流程"""
+        try:
+            self.logger.info("开始PPSD处理流程")
+            self.logger.info(f"加载了 {len(self.configs)} 个配置文件")
+            
+            # 分离计算型和绘图型配置
+            calc_configs = [c for c in self.configs if self._is_calculation_config(c)]
+            plot_configs = [c for c in self.configs if self._is_plot_config(c)]
+            
+            self.logger.info(f"计算型配置: {len(calc_configs)} 个")
+            self.logger.info(f"绘图型配置: {len(plot_configs)} 个")
+            
+            # 执行计算
+            for config in calc_configs:
+                try:
+                    self.calculate_ppsd(config)
+                except Exception as e:
+                    self.logger.error(f"计算失败: {e}")
+                    if len(calc_configs) == 1:  # 如果只有一个计算配置，抛出异常
+                        raise
+            
+            # 执行绘图
+            for config in plot_configs:
+                try:
+                    self.plot_ppsd(config)
+                except Exception as e:
+                    self.logger.error(f"绘图失败: {e}")
+                    if len(plot_configs) == 1:  # 如果只有一个绘图配置，抛出异常
+                        raise
+            
+            self.logger.info("PPSD处理流程完成")
+            
+        except Exception as e:
+            self.logger.error(f"处理流程失败: {e}")
+            self.logger.debug(traceback.format_exc())
+            raise
+
+
+def main():
+    """主函数"""
+    parser = argparse.ArgumentParser(
+        description='PPSD 批量处理与可视化工具',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+使用示例:
+  python run_cp_ppsd.py config.toml                    # 仅计算
+  python run_cp_ppsd.py config_plot.toml               # 仅绘图
+  python run_cp_ppsd.py config_plot.toml               # 绘图（分组配置）
+  python run_cp_ppsd.py config.toml config_plot.toml   # 计算+绘图
+
+配置文件说明:
+  - 计算型配置文件 (如 config.toml): 包含 mseed_pattern, inventory_path 等
+  - 绘图型配置文件 (如 config_plot.toml): 包含 input_npz_dir, plot_type 等
+        """
+    )
+    
+    parser.add_argument(
+        'config_files',
+        nargs='+',
+        help='TOML配置文件路径（可指定多个）'
+    )
+    
+    parser.add_argument(
+        '--pdb',
+        action='store_true',
+        help='出错时进入调试模式'
+    )
+    
+    args = parser.parse_args()
+    
+    try:
+        # 创建处理器并运行
+        processor = PPSDProcessor(args.config_files)
+        processor.run()
+        
+    except KeyboardInterrupt:
+        print("\n用户中断程序")
+        sys.exit(1)
+    except Exception as e:
+        print(f"程序执行失败: {e}")
+        if args.pdb:
+            import pdb
+            pdb.post_mortem()
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

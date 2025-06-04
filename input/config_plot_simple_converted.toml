@@ -1,0 +1,55 @@
+[global]
+log_level = "DEBUG"
+description = "PPSD绘图配置文件 - 分组结构版本"
+version = "2.0"
+
+[paths]
+input_npz_dir = "./output/npz/"
+inventory_path = "./input/BJ.XML"
+output_dir = "./output/plots/"
+output_filename_pattern = "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+
+[plotting]
+plot_types = [ "standard", "temporal", "spectrogram",]
+npz_merge_strategy = true
+dpi = 150
+figure_size = [ 12, 8,]
+
+[standard]
+show_histogram = true
+show_percentiles = true
+show_noise_models = true
+show_coverage = false
+show_mode = false
+show_mean = false
+standard_grid = true
+period_lim = [ 0.01, 1000.0,]
+xaxis_frequency = false
+cumulative_plot = false
+standard_cmap = "viridis"
+
+[temporal]
+plot_periods = [ 1.0, 8.0, 20.0,]
+time_format_x = "%H:%M"
+grid = true
+cmap = "Blues"
+
+[spectrogram]
+clim = [ -180, -100,]
+time_format_x = "%Y-%m-%d"
+grid = true
+cmap = "viridis"
+
+[standard.percentiles]
+values = [ 10, 50, 90,]
+color = "lightgray"
+linewidth = 1.0
+linestyle = "--"
+alpha = 0.8
+
+[standard.peterson]
+nlnm_color = "blue"
+nhnm_color = "red"
+linewidth = 1.0
+linestyle = "--"
+alpha = 0.8

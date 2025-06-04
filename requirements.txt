@@ -1,0 +1,29 @@
+# PPSD 批量处理与可视化工具依赖包
+# 安装方法：pip install -r requirements.txt
+
+# 核心依赖
+obspy>=1.4.0              # 地震学数据处理库
+toml>=0.10.2              # TOML配置文件解析
+matplotlib>=3.5.0         # 绘图库
+numpy>=1.21.0             # 数值计算库
+scipy>=1.7.0              # 科学计算库
+
+# 可选依赖（提升用户体验）
+tqdm>=4.62.0              # 进度条显示
+
+# 开发和测试依赖（可选）
+# pytest>=6.0.0          # 单元测试框架
+# pytest-cov>=2.0.0      # 测试覆盖率
+# flake8>=3.8.0           # 代码风格检查
+
+# 注意事项：
+# 1. pathlib 是 Python 3.4+ 的内置模块，无需单独安装
+# 2. datetime 是 Python 标准库，无需单独安装
+# 3. os, sys, glob, logging, argparse 等都是 Python 标准库
+# 4. setuptools 通常随 Python 安装，用于 setup.py
+# 5. tempfile, shutil, subprocess 是 Python 标准库
+# 6. typing 是 Python 3.5+ 的内置模块（Python 3.8+ 推荐使用）
+
+# 系统要求：
+# Python >= 3.8
+# 推荐使用 conda 环境管理依赖 
