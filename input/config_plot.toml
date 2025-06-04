@@ -25,14 +25,19 @@ output_dir = "./output/plots/"          # 输出目录 (图像保存于此)
 
 # output_filename_pattern 定义了生成图像文件名的规则。
 # 可以使用以下占位符:
-#   绘图类型(在绘图时确定): {plot_type} （plot_type="standard", plot_type="temporal", plot_type="spectrogram"）
-#   时间信息 (通常来自PPSD数据的起始时间或处理时间):
-#     {year}, {month}, {day}, {hour}, {minute}, {second}, {julday}
-#     {datetime} (例如 YYYYMMDDHHMM 格式的紧凑时间戳)
+#   绘图类型(在绘图时确定): {plot_type} （plot_type="standard", "temporal", "spectrogram"）
+#   时间信息 (来自PPSD数据的开始/结束时间):
+#     开始时间: {start_year}, {start_month}, {start_day}, {start_hour}, {start_minute}, {start_second}, {start_julday}
+#     {start_datetime} (例如 YYYYMMDDHHMM 格式的紧凑开始时间戳)
+#     结束时间: {end_year}, {end_month}, {end_day}, {end_hour}, {end_minute}, {end_second}, {end_julday}
+#     {end_datetime} (例如 YYYYMMDDHHMM 格式的紧凑结束时间戳)
+#     兼容性: {datetime}, {year}, {month}, {day}, {hour}, {minute}, {second}, {julday} (等同于开始时间)
 #   台站信息: {network}, {station}, {location}, {channel}
-#     例如: "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+#     例如: "{plot_type}_{start_datetime}_{end_datetime}_{network}-{station}-{location}-{channel}.png"
+#     或者: "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png" (仅使用开始时间)
 # 如果此参数未设置或为空，脚本将使用基于NPZ文件名的默认命名规则。
-output_filename_pattern = "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+# 使用时间范围的示例: "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.png"
 
 # ========================================
 # 3. 绘图基本设置
