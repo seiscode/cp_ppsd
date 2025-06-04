@@ -45,10 +45,10 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 [plotting]
 # 绘图类型：可以是单个字符串如 "standard", "temporal", "spectrogram",
 # 或包含这些值的列表，例如 ["standard", "temporal", "spectrogram"]。
-plot_types = ["standard", "temporal", "spectrogram"]
+plot_type = ["standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = "none"               # 合并策略: "auto", "none"
+npz_merge_strategy = "auto"               # 合并策略: "auto", "none"
                                           # "auto": 自动按SEED ID分组并使用add_npz()合并
                                           # "none": 每个NPZ文件单独绘图
 
@@ -66,7 +66,7 @@ show_percentiles = false                # 是否显示百分位数线
 show_noise_models = true                # 是否显示全球噪声模型（皮特森曲线）
 show_coverage = false                   # 是否显示数据覆盖度
 show_mode = true                        # 是否显示众数PSD曲线
-show_mean = false                       # 是否显示均值PSD曲线
+show_mean = false                        # 是否显示均值PSD曲线
 
 # --- 绘图样式控制 ---
 standard_grid = true                    # 是否在直方图上显示网格
@@ -114,13 +114,19 @@ alpha = 0.9                             # 均值线透明度 (0.0-1.0)
 # ========================================
 [temporal]
 # 绘制PSD值随时间演化曲线的特定周期（秒）
-plot_periods = [0.1, 1.0, 8.0, 20.0]
+temporal_plot_periods = [0.1, 1.0, 8.0, 20.0]
 # X轴（时间轴）刻度标签的时间格式
-time_format_x = "%H:%M"
+time_format_x = "%Y-%m-%d"
 # 是否在图上显示网格
-grid = true
-# PPSD图的颜色映射方案。科技报告配色：白色背景蓝色渐变，经典专业
-cmap = "Blues"
+temporal_grid = true
+# 是否显示图例
+temporal_legend = true
+# 线条颜色 (可选，为多个周期的列表或单一颜色)
+# temporal_color = ["blue", "red", "green", "orange"]
+# 线条样式 (可选)
+# temporal_linestyle = "-"
+# 线条标记 (可选)
+# temporal_marker = "o"
 
 # ========================================
 # 6. 频谱图配置
@@ -128,12 +134,12 @@ cmap = "Blues"
 [spectrogram]
 # 颜色图的振幅限制 [min_db, max_db]
 clim = [-180, -100]
-# Y轴（时间轴）刻度标签的时间格式
-time_format_x = "%Y-%m-%d"
+# X轴（时间轴）刻度标签的时间格式 - 测试明显格式验证修复
+time_format_x = "%Y%m%d %H:%M"
 # 是否在图上显示网格
-grid = true
+spectrogram_grid = true
 # PPSD图的颜色映射方案。自定义配色：Ocean反向配色，浅色到深色，优雅渐变
-cmap = "ocean_r_custom"
+spectrogram_cmap = "ocean_r_custom"
 
 # ========================================
 # 7. 颜色配置

@@ -704,6 +704,8 @@ class PPSDProcessor:
         if isinstance(plot_types, str):
             plot_types = [plot_types]
         
+        self.logger.info(f"要处理的绘图类型: {plot_types}")
+        
         # 为每个SEED ID组创建合并的PPSD对象
         for seed_id, file_list in seed_groups.items():
             try:
@@ -715,10 +717,14 @@ class PPSDProcessor:
                 # 为每种绘图类型生成图像
                 for plot_type in plot_types:
                     try:
+                        self.logger.info(f"正在为 {seed_id} 创建 {plot_type} 图像")
                         # 使用SEED ID作为trace ID，文件名会包含"merged"标识
                         self._create_merged_plot_for_seed(merged_ppsd, plot_type, seed_id, args, output_dir, config, len(file_list))
                     except Exception as e:
                         self.logger.error(f"合并绘图失败 {seed_id} - {plot_type}: {e}")
+                        # 打印详细错误信息
+                        import traceback
+                        self.logger.error(f"详细错误信息: {traceback.format_exc()}")
                         continue
         
             except Exception as e:
@@ -917,16 +923,23 @@ class PPSDProcessor:
         try:
             if plot_type == 'standard':
                 self._plot_standard(ppsd, args)
-                # 修改标题以显示合并信息
-                current_title = plt.gca().get_title()
-                new_title = f"Merged PPSD ({file_count} files, {len(ppsd.times_processed)} segments)\n{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
+                # 修改标题以显示时间范围信息
+                new_title = f"{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
                 plt.title(new_title)
             elif plot_type == 'temporal':
                 self._plot_temporal(ppsd, args)
-                plt.title(f"Merged Temporal Plot ({file_count} files)\n{seed_id}")
+                # 修改标题以显示时间范围信息
+                temporal_title = (f"{seed_id}\n"
+                                f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                                f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+                plt.title(temporal_title)
             elif plot_type == 'spectrogram':
                 self._plot_spectrogram(ppsd, args)
-                plt.title(f"Merged Spectrogram ({file_count} files)\n{seed_id}")
+                # 修改标题以显示时间范围信息
+                spectrogram_title = (f"{seed_id}\n"
+                                   f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                                   f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+                plt.title(spectrogram_title)
             else:
                 raise ValueError(f"不支持的绘图类型: {plot_type}")
             
@@ -1238,9 +1251,8 @@ class PPSDProcessor:
             if show_custom_mean:
                 self._add_custom_mean_line(merged_ppsd, args)
             
-            # 在标题中注明合并信息
-            plt.title(f"Merged PPSD ({len(ppsd_list)} time periods)\n"
-                     f"{merged_ppsd.network}.{merged_ppsd.station}."
+            # 设置标题
+            plt.title(f"{merged_ppsd.network}.{merged_ppsd.station}."
                      f"{merged_ppsd.location}.{merged_ppsd.channel}")
                      
         except Exception as e:
@@ -1270,8 +1282,7 @@ class PPSDProcessor:
             if show_custom_mean:
                 self._add_custom_mean_line(main_ppsd, args)
                 
-            plt.title(f"PPSD (merge failed, showing first of {len(ppsd_list)})\n"
-                     f"{main_ppsd.network}.{main_ppsd.station}."
+            plt.title(f"{main_ppsd.network}.{main_ppsd.station}."
                      f"{main_ppsd.location}.{main_ppsd.channel}")
     
     def _plot_merged_temporal(self, ppsd_list: List, args: Dict):
@@ -1279,86 +1290,704 @@ class PPSDProcessor:
         if not ppsd_list:
             return
         
+        # 获取temporal配置参数
         periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
+        time_format = args.get('time_format_x_temporal', '%H:%M')
+        show_grid = args.get('temporal_grid', True)
+        cmap = args.get('temporal_cmap', 'Blues')
         
         # 对于时间演化图，合并多个PPSD的时间序列数据
         # 这里使用第一个PPSD作为基础
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_temporal(periods)
         
-        # 如果有多个PPSD，在标题中注明
-        if len(ppsd_list) > 1:
-            plt.title(f"Merged Temporal Plot ({len(ppsd_list)} time periods)\n{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}")
+        # 应用网格设置
+        if show_grid:
+            plt.grid(True, alpha=0.3)
+        
+        # 尝试手动设置配色方案
+        try:
+            # 获取当前图形的colorbar或imshow对象，尝试应用自定义配色
+            ax = plt.gca()
+            for im in ax.get_images():
+                if hasattr(im, 'set_cmap'):
+                    im.set_cmap(cmap)
+        except Exception as e:
+            # 这里无法使用self.logger，因为这是类方法，但没有logger引用
+            pass
+        
+        # 设置时间轴格式
+        try:
+            import matplotlib.dates as mdates
+            ax = plt.gca()
+            # 强制应用时间格式
+            formatter = mdates.DateFormatter(time_format)
+            ax.xaxis.set_major_formatter(formatter)
+            # 自动旋转标签以避免重叠
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+            # 确保时间轴标签重新计算
+            ax.figure.canvas.draw_idle()
+        except Exception as e:
+            self.logger.debug(f"merged temporal时间格式应用失败: {e}")
+        
+        # 获取时间范围并设置标题
+        all_times = []
+        for trace_id, ppsd in ppsd_list:
+            if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+                all_times.extend(ppsd.times_processed)
+        
+        seed_id = f"{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}"
+        
+        if all_times:
+            start_time = min(all_times)
+            end_time = max(all_times)
+            
+            title = (f"{seed_id}\n"
+                    f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                    f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+        else:
+            title = f"{seed_id}"
+        
+        plt.title(title)
+    
+    def _plot_temporal(self, ppsd: PPSD, args: Dict):
+        """绘制时间演化图
+        
+        基于ObsPy API，plot_temporal支持的参数：
+        - period: 要绘制的周期值
+        - color: 线条颜色
+        - legend: 是否显示图例
+        - grid: 是否显示网格
+        - linestyle: 线条样式
+        - marker: 线条标记
+        - filename: 输出文件名(由框架处理)
+        - show: 是否显示图像(由框架处理)
+        """
+        # 获取temporal配置参数
+        periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
+        
+        # 构建ObsPy plot_temporal支持的参数
+        plot_params = {}
+        
+        # grid参数 - ObsPy原生支持
+        if 'temporal_grid' in args:
+            plot_params['grid'] = args['temporal_grid']
+        
+        # color参数 - ObsPy原生支持
+        # 注意：对于多个周期，color应该是颜色列表或None
+        temporal_color = args.get('temporal_color', None)
+        if temporal_color:
+            plot_params['color'] = temporal_color
+        
+        # legend参数 - ObsPy原生支持
+        plot_params['legend'] = args.get('temporal_legend', True)
+        
+        # linestyle参数 - ObsPy原生支持
+        temporal_linestyle = args.get('temporal_linestyle', '-')
+        if temporal_linestyle:
+            plot_params['linestyle'] = temporal_linestyle
+        
+        # marker参数 - ObsPy原生支持
+        temporal_marker = args.get('temporal_marker', None)
+        if temporal_marker:
+            plot_params['marker'] = temporal_marker
+        
+        # 使用ObsPy的plot_temporal方法
+        ppsd.plot_temporal(periods, **plot_params)
+        
+        # 添加包含时间范围的标题
+        if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+            start_time = min(ppsd.times_processed)
+            end_time = max(ppsd.times_processed)
+            n_segments = len(ppsd.times_processed)
+            
+            seed_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+            title = (f"{seed_id}\n"
+                    f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                    f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            plt.title(title)
+        
+        # 手动应用时间格式 (ObsPy不直接支持)
+        time_format = args.get('time_format_x_temporal', '%H:%M')
+        try:
+            import matplotlib.dates as mdates
+            ax = plt.gca()
+            # 强制应用时间格式，不管是否为默认格式
+            ax.xaxis.set_major_formatter(mdates.DateFormatter(time_format))
+            # 确保时间轴标签重新计算
+            ax.figure.canvas.draw_idle()
+        except Exception as e:
+            self.logger.debug(f"应用temporal时间格式失败: {e}")
+    
+    def _plot_spectrogram(self, ppsd: PPSD, args: Dict):
+        """绘制频谱图
+        
+        基于ObsPy API，plot_spectrogram支持的参数：
+        - cmap: 颜色映射
+        - clim: 颜色限制范围 [min, max]
+        - grid: 是否显示网格
+        - filename: 输出文件名(由框架处理)
+        - show: 是否显示图像(由框架处理)
+        """
+        # 构建ObsPy plot_spectrogram支持的参数
+        plot_params = {}
+        
+        # cmap参数 - ObsPy原生支持
+        spectrogram_cmap = args.get('spectrogram_cmap', 'viridis')
+        if spectrogram_cmap:
+            # 首先尝试从自定义配色方案中获取
+            if CUSTOM_COLORMAPS_AVAILABLE:
+                custom_cmap = get_custom_colormap(spectrogram_cmap)
+                if custom_cmap is not None:
+                    plot_params['cmap'] = custom_cmap
+                    self.logger.debug(f"使用自定义spectrogram配色方案: {spectrogram_cmap}")
+                else:
+                    # 如果不是自定义配色方案，则使用matplotlib标准配色方案
+                    plot_params['cmap'] = spectrogram_cmap
+                    self.logger.debug(f"使用标准spectrogram配色方案: {spectrogram_cmap}")
+            else:
+                plot_params['cmap'] = spectrogram_cmap
+                self.logger.debug(f"使用spectrogram配色方案: {spectrogram_cmap}")
+        
+        # clim参数 - ObsPy原生支持
+        clim = args.get('clim', [-180, -100])
+        if clim:
+            plot_params['clim'] = clim
+        
+        # grid参数 - ObsPy原生支持
+        if 'spectrogram_grid' in args:
+            plot_params['grid'] = args['spectrogram_grid']
+        
+        # 使用ObsPy的plot_spectrogram方法
+        ppsd.plot_spectrogram(**plot_params)
+        
+        # 立即在ObsPy绘图完成后应用时间格式 - 修正：应用到X轴而不是Y轴
+        time_format = args.get('time_format_x_spectrogram', '%Y-%m-%d')
+        try:
+            import matplotlib.dates as mdates
+            ax = plt.gca()
+            # 修正：spectrogram的时间轴是X轴，不是Y轴！
+            self.logger.debug(f"应用spectrogram时间格式到X轴: {time_format}")
+            formatter = mdates.DateFormatter(time_format)
+            ax.xaxis.set_major_formatter(formatter)  # 修正：应用到X轴
+            
+            # 强制重新计算和刷新时间轴标签
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')  # X轴标签旋转
+            ax.figure.canvas.draw_idle()
+            
+            # 额外的强制刷新步骤
+            plt.draw()
+            ax.relim()
+            ax.autoscale_view()
+            
+            self.logger.debug("spectrogram时间格式应用成功")
+        except Exception as e:
+            self.logger.debug(f"应用spectrogram时间格式失败: {e}")
+        
+        # 添加包含时间范围的标题
+        if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+            start_time = min(ppsd.times_processed)
+            end_time = max(ppsd.times_processed)
+            
+            seed_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+            title = (f"{seed_id}\n"
+                    f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                    f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            plt.title(title)
     
     def _plot_merged_spectrogram(self, ppsd_list: List, args: Dict):
         """绘制合并的频谱图"""
         if not ppsd_list:
             return
         
-        plot_params = {
-            'cmap': args.get('spectrogram_cmap', 'viridis')
-        }
+        # 获取spectrogram配置参数
+        cmap = args.get('spectrogram_cmap', 'viridis')
+        clim = args.get('clim', [-180, -100])
+        time_format = args.get('time_format_x_spectrogram', '%Y-%m-%d')
+        show_grid = args.get('spectrogram_grid', True)
         
-        if 'clim' in args:
-            plot_params['clim'] = args['clim']
+        # 构建绘图参数
+        plot_params = {}
+        
+        # 处理配色方案
+        if cmap:
+            # 首先尝试从自定义配色方案中获取
+            if CUSTOM_COLORMAPS_AVAILABLE:
+                custom_cmap = get_custom_colormap(cmap)
+                if custom_cmap is not None:
+                    plot_params['cmap'] = custom_cmap
+                    self.logger.debug(f"使用自定义merged spectrogram配色方案: {cmap}")
+                else:
+                    # 如果不是自定义配色方案，则使用matplotlib标准配色方案
+                    plot_params['cmap'] = cmap
+                    self.logger.debug(f"使用标准merged spectrogram配色方案: {cmap}")
+            else:
+                plot_params['cmap'] = cmap
+                self.logger.debug(f"使用merged spectrogram配色方案: {cmap}")
+        
+        if clim:
+            plot_params['clim'] = clim
         
         # 对于频谱图，使用第一个PPSD
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_spectrogram(**plot_params)
         
-        # 如果有多个PPSD，在标题中注明
-        if len(ppsd_list) > 1:
-            plt.title(f"Merged Spectrogram ({len(ppsd_list)} time periods)\n{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}")
-    
-    def _create_plot(self, ppsd: PPSD, plot_type: str, trace_id: str, args: Dict, output_dir: str, config: Dict):
-        """创建单个图像"""
-        self.logger.debug(f"创建 {plot_type} 图像: {trace_id}")
+        # 立即在ObsPy绘图完成后应用时间格式 - 修正：应用到X轴
+        self.logger.debug(f"merged spectrogram时间格式设置: {time_format}")
+        try:
+            import matplotlib.dates as mdates
+            ax = plt.gca()
+            # 修正：spectrogram的时间轴是X轴，不是Y轴！
+            self.logger.debug(f"正在应用merged spectrogram时间格式到X轴: {time_format}")
+            formatter = mdates.DateFormatter(time_format)
+            ax.xaxis.set_major_formatter(formatter)  # 修正：应用到X轴
+            
+            # 强制重新计算和刷新时间轴标签
+            plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')  # X轴标签旋转
+            ax.figure.canvas.draw_idle()
+            
+            # 额外的强制刷新步骤
+            plt.draw()
+            ax.relim()
+            ax.autoscale_view()
+            
+            self.logger.debug("merged spectrogram时间格式应用成功")
+        except Exception as e:
+            self.logger.error(f"设置merged spectrogram时间轴格式失败: {e}")
         
-        # 检查PPSD对象是否有数据
-        if len(ppsd.times_processed) == 0:
-            self.logger.warning(f"跳过 {trace_id} - {plot_type}: PPSD对象没有数据")
-            return
+        # 应用网格设置
+        if show_grid:
+            plt.grid(True, alpha=0.3)
         
-        # 生成文件名
-        metadata = {
-            'network': ppsd.network,
-            'station': ppsd.station,
-            'location': ppsd.location,
-            'channel': ppsd.channel
-        }
+        # 添加包含时间范围的标题
+        all_times = []
+        for trace_id, ppsd in ppsd_list:
+            if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+                all_times.extend(ppsd.times_processed)
         
-        # 尝试从PPSD对象获取数据开始时间
-        data_starttime = None
-        if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
-            # 使用第一个处理时间段的开始时间
-            data_starttime = min(ppsd.times_processed)
+        seed_id = f"{main_ppsd.network}.{main_ppsd.station}.{main_ppsd.location}.{main_ppsd.channel}"
         
-        filename_pattern = config.get('output_filename_pattern', '')
-        filename = self._generate_filename(filename_pattern, metadata, plot_type, data_starttime)
-        filepath = os.path.join(output_dir, filename)
-        
-        # 创建图像
-        fig = plt.figure(figsize=(12, 8))
-        
-        if plot_type == 'standard':
-            self._plot_standard(ppsd, args)
-        elif plot_type == 'temporal':
-            self._plot_temporal(ppsd, args)
-        elif plot_type == 'spectrogram':
-            self._plot_spectrogram(ppsd, args)
+        if all_times:
+            start_time = min(all_times)
+            end_time = max(all_times)
+            
+            title = (f"{seed_id}\n"
+                    f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                    f"{end_time.strftime('%Y-%m-%d %H:%M')}")
         else:
-            raise ValueError(f"不支持的绘图类型: {plot_type}")
+            title = f"{seed_id}"
         
-        # 保存图像
-        plt.tight_layout()
-        plt.savefig(filepath, dpi=150, bbox_inches='tight')
-        plt.close(fig)
-        
-        self.logger.info(f"保存图像: {filepath}")
+        plt.title(title)
     
+    def _modify_coverage_transparency(self, alpha: float = 0.5):
+        """修改数据覆盖度显示的透明度
+        
+        Parameters:
+            alpha: 透明度值 (0.0-1.0)，默认0.5表示50%透明度
+        """
+        try:
+            # 获取当前figure的所有axes
+            fig = plt.gcf()
+            axes = fig.get_axes()
+            
+            coverage_elements_modified = 0
+            
+            # 遍历所有axes，寻找coverage相关的图形元素
+            for ax in axes:
+                # 查找coverage相关的matplotlib patch对象
+                for patch in ax.patches:
+                    # 直接修改所有patch的透明度（包括Polygon、Rectangle等）
+                    # coverage的patch通常位于图的上方区域
+                    try:
+                        patch.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改patch透明度: {e}")
+                        
+                # 也检查是否有通过collections添加的coverage元素
+                for collection in ax.collections:
+                    try:
+                        # 修改collection的透明度
+                        collection.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改collection透明度: {e}")
+                        
+                # 检查Line2D对象（可能是coverage的线条）
+                for line in ax.get_lines():
+                    # 检查是否是coverage相关的线条（通常y坐标较高）
+                    try:
+                        ydata = line.get_ydata()
+                        if len(ydata) > 0 and hasattr(line, '_original_alpha'):
+                            # 这是我们之前处理过的线条，跳过
+                            continue
+                        # 为coverage线条设置透明度
+                        # 保存原始透明度
+                        line._original_alpha = line.get_alpha() or 1.0
+                        line.set_alpha(alpha)
+                        coverage_elements_modified += 1
+                    except Exception as e:
+                        self.logger.debug(f"无法修改line透明度: {e}")
+            
+            if coverage_elements_modified > 0:
+                self.logger.info(f"成功设置数据覆盖度透明度为 {alpha}，修改了 {coverage_elements_modified} 个元素")
+            else:
+                self.logger.warning("未找到可修改的数据覆盖度元素")
+            
+        except Exception as e:
+            self.logger.warning(f"修改数据覆盖度透明度失败: {e}")
+    
+    def _add_custom_percentile_lines(self, ppsd: PPSD, percentiles: List[float], args: Dict):
+        """添加自定义样式的百分位数线
+        
+        Parameters:
+            ppsd: PPSD对象
+            percentiles: 百分位数列表
+            args: 绘图参数，包含自定义样式设置
+        """
+        try:
+            # 获取自定义样式参数
+            color = args.get('percentile_color', 'lightgray')
+            linewidth = args.get('percentile_linewidth', 1.0)
+            linestyle = args.get('percentile_linestyle', '--')
+            alpha = args.get('percentile_alpha', 0.8)
+            
+            # 计算百分位数
+            try:
+                # 获取当前坐标轴
+                ax = plt.gca()
+                
+                # 绘制每条百分位数线 - 逐个计算百分位数
+                for percentile in percentiles:
+                    try:
+                        # ObsPy的get_percentile返回(periods, psd_values)元组
+                        periods, psd_values = ppsd.get_percentile(percentile)
+                        
+                        # 绘制百分位数线
+                        ax.plot(periods, psd_values, 
+                               color=color, linewidth=linewidth, 
+                               linestyle=linestyle, alpha=alpha,
+                               label=f'{percentile}th percentile')
+                        
+                        self.logger.debug(f"成功添加 {percentile}th 百分位数线")
+                        
+                    except Exception as e:
+                        self.logger.warning(f"计算 {percentile}th 百分位数失败: {e}")
+                        continue
+                
+                self.logger.debug(f"完成自定义百分位数线绘制: {percentiles}")
+                
+            except Exception as e:
+                self.logger.warning(f"计算百分位数失败: {e}")
+                
+        except Exception as e:
+            self.logger.warning(f"添加自定义百分位数线失败: {e}")
+    
+    def _add_custom_peterson_curves(self, args: Dict):
+        """添加自定义样式的皮特森噪声模型曲线
+        
+        Parameters:
+            args: 绘图参数，包含自定义样式设置
+        """
+        try:
+            # 获取自定义样式参数
+            nlnm_color = args.get('peterson_nlnm_color', 'blue')
+            nhnm_color = args.get('peterson_nhnm_color', 'red')
+            linewidth = args.get('peterson_linewidth', 1.0)
+            linestyle = args.get('peterson_linestyle', '--')
+            alpha = args.get('peterson_alpha', 0.8)
+            
+            # 导入ObsPy的噪声模型
+            try:
+                from obspy.signal.spectral_estimation import get_nlnm, get_nhnm
+                
+                # 获取NLNM和NHNM数据
+                nlnm_periods, nlnm_psd = get_nlnm()
+                nhnm_periods, nhnm_psd = get_nhnm()
+                
+                # 获取当前坐标轴
+                ax = plt.gca()
+                
+                # 绘制NLNM曲线
+                ax.plot(nlnm_periods, nlnm_psd, 
+                       color=nlnm_color, linewidth=linewidth,
+                       linestyle=linestyle, alpha=alpha,
+                       label='NLNM')
+                
+                # 绘制NHNM曲线
+                ax.plot(nhnm_periods, nhnm_psd,
+                       color=nhnm_color, linewidth=linewidth,
+                       linestyle=linestyle, alpha=alpha,
+                       label='NHNM')
+                
+                self.logger.debug("成功添加自定义皮特森曲线")
+                
+            except ImportError:
+                self.logger.warning("无法导入ObsPy噪声模型，跳过皮特森曲线绘制")
+            
+        except Exception as e:
+            self.logger.warning(f"添加自定义皮特森曲线失败: {e}")
+    
+    def _add_custom_mode_line(self, ppsd: PPSD, args: Dict):
+        """添加自定义样式的众数线
+        
+        Parameters:
+            ppsd: PPSD对象
+            args: 绘图参数，包含自定义样式设置
+        """
+        try:
+            # 获取自定义样式参数
+            color = args.get('mode_color', 'orange')
+            linewidth = args.get('mode_linewidth', 1.0)
+            linestyle = args.get('mode_linestyle', '-')
+            alpha = args.get('mode_alpha', 0.9)
+            
+            # 计算众数PSD
+            try:
+                # 尝试使用不同的方法获取众数数据
+                mode_psd = None
+                periods = ppsd.period_bin_centers  # 使用PPSD的周期数据
+                
+                # 方法1: 尝试get_mode方法 (ObsPy可能返回元组)
+                if hasattr(ppsd, 'get_mode'):
+                    try:
+                        mode_result = ppsd.get_mode()
+                        # 检查是否返回元组
+                        if isinstance(mode_result, tuple) and len(mode_result) == 2:
+                            periods, mode_psd = mode_result
+                        else:
+                            mode_psd = mode_result
+                            periods = ppsd.period_bin_centers
+                    except Exception as e:
+                        self.logger.debug(f"get_mode方法失败: {e}")
+                        mode_psd = None
+                    
+                # 方法2: 如果没有get_mode方法，尝试从psd_matrix计算
+                elif hasattr(ppsd, '_psd_matrix') and ppsd._psd_matrix is not None:
+                    import numpy as np
+                    from scipy import stats
+                    
+                    # 计算每个频率bins的众数
+                    psd_matrix = np.array(ppsd._psd_matrix)
+                    if len(psd_matrix.shape) == 2:
+                        # 对每个频率计算众数
+                        mode_psd = []
+                        for freq_idx in range(psd_matrix.shape[1]):
+                            freq_data = psd_matrix[:, freq_idx]
+                            freq_data = freq_data[~np.isnan(freq_data)]  # 移除NaN值
+                            if len(freq_data) > 0:
+                                mode_val = stats.mode(freq_data, keepdims=False)
+                                mode_psd.append(mode_val.mode if hasattr(mode_val, 'mode') else mode_val[0])
+                            else:
+                                mode_psd.append(np.nan)
+                        mode_psd = np.array(mode_psd)
+                
+                if mode_psd is not None:
+                    # 处理多维数组
+                    if hasattr(mode_psd, 'shape') and len(mode_psd.shape) > 1:
+                        if mode_psd.shape[0] > 0:
+                            mode_psd = mode_psd[0]
+                        else:
+                            mode_psd = mode_psd.flatten()
+                    
+                    # 获取当前坐标轴
+                    ax = plt.gca()
+                    
+                    # 绘制众数线
+                    ax.plot(periods, mode_psd,
+                           color=color, linewidth=linewidth,
+                           linestyle=linestyle, alpha=alpha,
+                           label='Mode')
+                    
+                    self.logger.debug("成功添加自定义众数线")
+                else:
+                    self.logger.warning("无法计算众数PSD，跳过众数线绘制")
+                    
+            except Exception as e:
+                self.logger.warning(f"计算众数PSD失败: {e}")
+                
+        except Exception as e:
+            self.logger.warning(f"添加自定义众数线失败: {e}")
+    
+    def _add_custom_mean_line(self, ppsd: PPSD, args: Dict):
+        """添加自定义样式的均值线
+        
+        Parameters:
+            ppsd: PPSD对象
+            args: 绘图参数，包含自定义样式设置
+        """
+        try:
+            # 获取自定义样式参数
+            color = args.get('mean_color', 'green')
+            linewidth = args.get('mean_linewidth', 1.0)
+            linestyle = args.get('mean_linestyle', '-')
+            alpha = args.get('mean_alpha', 0.9)
+            
+            # 计算均值PSD
+            try:
+                # 尝试使用不同的方法获取均值数据
+                mean_psd = None
+                periods = ppsd.period_bin_centers  # 使用PPSD的周期数据
+                
+                # 方法1: 尝试get_mean方法 (ObsPy可能返回元组)
+                if hasattr(ppsd, 'get_mean'):
+                    try:
+                        mean_result = ppsd.get_mean()
+                        # 检查是否返回元组
+                        if isinstance(mean_result, tuple) and len(mean_result) == 2:
+                            periods, mean_psd = mean_result
+                        else:
+                            mean_psd = mean_result
+                            periods = ppsd.period_bin_centers
+                    except Exception as e:
+                        self.logger.debug(f"get_mean方法失败: {e}")
+                        mean_psd = None
+                    
+                # 方法2: 如果没有get_mean方法，尝试从psd_matrix计算
+                elif hasattr(ppsd, '_psd_matrix') and ppsd._psd_matrix is not None:
+                    import numpy as np
+                    
+                    # 计算每个频率bins的均值
+                    psd_matrix = np.array(ppsd._psd_matrix)
+                    if len(psd_matrix.shape) == 2:
+                        # 对每个频率计算均值，忽略NaN值
+                        mean_psd = np.nanmean(psd_matrix, axis=0)
+                
+                if mean_psd is not None:
+                    # 处理多维数组
+                    if hasattr(mean_psd, 'shape') and len(mean_psd.shape) > 1:
+                        if mean_psd.shape[0] > 0:
+                            mean_psd = mean_psd[0]
+                        else:
+                            mean_psd = mean_psd.flatten()
+                    
+                    # 获取当前坐标轴
+                    ax = plt.gca()
+                    
+                    # 绘制均值线
+                    ax.plot(periods, mean_psd,
+                           color=color, linewidth=linewidth,
+                           linestyle=linestyle, alpha=alpha,
+                           label='Mean')
+                    
+                    self.logger.debug("成功添加自定义均值线")
+                else:
+                    self.logger.warning("无法计算均值PSD，跳过均值线绘制")
+                    
+            except Exception as e:
+                self.logger.warning(f"计算均值PSD失败: {e}")
+                
+        except Exception as e:
+            self.logger.warning(f"添加自定义均值线失败: {e}")
+    
+    def _is_grouped_config_structure(self, config: Dict) -> bool:
+        """检查配置文件是否为分组结构
+        
+        检查配置是否包含分组配置的特征结构：
+        - [global] 节
+        - [paths] 节  
+        - [standard] 或 [standard.percentiles] 等嵌套节
+        """
+        # 检查是否包含分组配置的特征节
+        has_global = 'global' in config
+        has_paths = 'paths' in config
+        has_plotting = 'plotting' in config
+        has_standard = 'standard' in config
+        
+        # 检查是否有嵌套结构
+        has_nested_structure = False
+        if has_standard:
+            standard_section = config['standard']
+            if isinstance(standard_section, dict):
+                # 检查是否有 percentiles, peterson 等子节
+                has_nested_structure = (
+                    'percentiles' in standard_section or
+                    'peterson' in standard_section or
+                    'mode' in standard_section or
+                    'mean' in standard_section
+                )
+        
+        # 如果有多个特征节存在，认为是分组配置
+        structure_score = sum([has_global, has_paths, has_plotting, has_standard, has_nested_structure])
+        
+        return structure_score >= 3  # 至少有3个特征才认为是分组配置
+    
+    def run(self):
+        """运行主处理流程"""
+        try:
+            self.logger.info("开始PPSD处理流程")
+            self.logger.info(f"加载了 {len(self.configs)} 个配置文件")
+            
+            # 分离计算型和绘图型配置
+            calc_configs = [c for c in self.configs if self._is_calculation_config(c)]
+            plot_configs = [c for c in self.configs if self._is_plot_config(c)]
+            
+            self.logger.info(f"计算型配置: {len(calc_configs)} 个")
+            self.logger.info(f"绘图型配置: {len(plot_configs)} 个")
+            
+            # 执行计算
+            for config in calc_configs:
+                try:
+                    self.calculate_ppsd(config)
+                except Exception as e:
+                    self.logger.error(f"计算失败: {e}")
+                    if len(calc_configs) == 1:  # 如果只有一个计算配置，抛出异常
+                        raise
+            
+            # 执行绘图
+            for config in plot_configs:
+                try:
+                    self.plot_ppsd(config)
+                except Exception as e:
+                    self.logger.error(f"绘图失败: {e}")
+                    if len(plot_configs) == 1:  # 如果只有一个绘图配置，抛出异常
+                        raise
+            
+            self.logger.info("PPSD处理流程完成")
+            
+        except Exception as e:
+            self.logger.error(f"处理流程失败: {e}")
+            self.logger.debug(traceback.format_exc())
+            raise
+
     def _plot_standard(self, ppsd: PPSD, args: Dict):
-        """绘制标准PPSD图"""
-        # 使用最基本的参数避免兼容性问题
+        """绘制标准PPSD图（单个PPSD对象）
+        
+        基于ObsPy API，plot支持的参数：
+        - period_lim: 周期范围限制
+        - show_coverage: 是否显示数据覆盖度
+        - show_percentiles: 是否显示百分位数线
+        - percentiles: 百分位数值列表
+        - show_noise_models: 是否显示皮特森噪声模型
+        - show_mode: 是否显示mode线
+        - show_mean: 是否显示mean线
+        - cmap: 颜色映射
+        - xaxis_frequency: X轴是否使用频率而不是周期
+        - cumulative: 是否显示累积图
+        """
+        # 调试：输出接收到的参数
+        self.logger.debug(f"_plot_standard 接收到的参数数量: {len(args)}")
+        
+        # 检查自定义样式相关参数
+        style_params = [
+            'percentile_color', 'percentile_linewidth', 'percentile_linestyle', 'percentile_alpha',
+            'peterson_nlnm_color', 'peterson_nhnm_color', 'peterson_linewidth', 'peterson_linestyle', 'peterson_alpha',
+            'mode_color', 'mode_linewidth', 'mode_linestyle', 'mode_alpha',
+            'mean_color', 'mean_linewidth', 'mean_linestyle', 'mean_alpha'
+        ]
+        
+        found_style_params = [param for param in style_params if param in args]
+        if found_style_params:
+            self.logger.info(f"发现自定义样式参数: {found_style_params}")
+        else:
+            self.logger.warning("未发现任何自定义样式参数")
+            
+        # 输出关键开关参数状态
+        self.logger.debug(f"显示开关 - percentiles: {args.get('show_percentiles')}, "
+                         f"noise_models: {args.get('show_noise_models')}, "
+                         f"mode: {args.get('show_mode')}, "
+                         f"mean: {args.get('show_mean')}")
+        # 准备绘图参数
         plot_params = {
             'period_lim': args.get('period_lim', [0.01, 1000.0]),
             'show_coverage': args.get('show_coverage', True)
@@ -1372,11 +2001,14 @@ class PPSDProcessor:
                 custom_cmap = get_custom_colormap(cmap_name)
                 if custom_cmap is not None:
                     plot_params['cmap'] = custom_cmap
+                    self.logger.debug(f"使用自定义standard配色方案: {cmap_name}")
                 else:
                     # 如果不是自定义配色方案，则使用matplotlib标准配色方案
                     plot_params['cmap'] = plt.get_cmap(cmap_name)
+                    self.logger.debug(f"使用标准配色方案: {cmap_name}")
             else:
                 plot_params['cmap'] = plt.get_cmap(cmap_name)
+                self.logger.debug(f"使用配色方案: {cmap_name}")
         
         # 检查是否需要自定义百分位数线样式
         custom_percentile_style = (
@@ -1450,17 +2082,12 @@ class PPSDProcessor:
             show_custom_percentiles = False
         
         # 添加其他标准图参数（只包含ObsPy支持的参数）
-        # 注意：如果已经设置了自定义样式，就不要覆盖这些设置
-        if 'show_mode' in args and not custom_mode_style:
-            plot_params['show_mode'] = args['show_mode']
-        if 'show_mean' in args and not custom_mean_style:
-            plot_params['show_mean'] = args['show_mean']
         if 'xaxis_frequency' in args:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
             plot_params['cumulative'] = args['cumulative_plot']
         
-        # 绘制PPSD图
+        # 使用ObsPy的plot方法
         ppsd.plot(**plot_params)
         
         # 如果启用了show_coverage，修改coverage横条的透明度
@@ -1470,522 +2097,34 @@ class PPSDProcessor:
         
         # 如果需要自定义皮特森曲线样式，手动添加
         if show_custom_peterson:
+            self.logger.info("调用自定义皮特森曲线绘制")
             self._add_custom_peterson_curves(args)
         
         # 如果需要自定义百分位数线样式，手动添加
         if show_custom_percentiles:
+            self.logger.info(f"调用自定义百分位数线绘制: {percentiles}")
             self._add_custom_percentile_lines(ppsd, percentiles, args)
         
         # 如果需要自定义mode线样式，手动添加
         if show_custom_mode:
+            self.logger.info("调用自定义众数线绘制")
             self._add_custom_mode_line(ppsd, args)
         
         # 如果需要自定义mean线样式，手动添加
         if show_custom_mean:
+            self.logger.info("调用自定义均值线绘制")
             self._add_custom_mean_line(ppsd, args)
-    
-    def _add_custom_percentile_lines(self, ppsd: PPSD, percentiles: list, args: Dict):
-        """添加自定义样式的百分位数线"""
-        try:
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
-            
-            # 找到主要的PPSD绘图区域（通常是最大的axes或包含PPSD数据的axes）
-            main_ax = None
-            if len(axes) == 1:
-                # 只有一个axes，直接使用
-                main_ax = axes[0]
-            else:
-                # 多个axes的情况，找到主要的PPSD绘图区域
-                # 主要的PPSD axes通常有以下特征：
-                # 1. Y轴标签包含"Power"或"dB"
-                # 2. X轴标签包含"Period"或"Frequency"
-                # 3. 位置较大（不是小的coverage子图）
-                for ax in axes:
-                    ylabel = ax.get_ylabel().lower()
-                    xlabel = ax.get_xlabel().lower()
-                    # 检查是否是主要的PPSD绘图区域
-                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
-                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
-                        main_ax = ax
-                        break
-                
-                # 如果没有找到，使用第一个axes
-                if main_ax is None:
-                    main_ax = axes[0]
-            
-            # 获取自定义样式参数
-            percentile_color = args.get('percentile_color', 'lightgray')
-            percentile_linewidth = args.get('percentile_linewidth', 1.0)
-            percentile_linestyle = args.get('percentile_linestyle', '-')
-            percentile_alpha = args.get('percentile_alpha', 0.8)
-            
-            # 检查X轴是否显示频率
-            xaxis_frequency = args.get('xaxis_frequency', False)
-            
-            self.logger.info(f"添加自定义百分位数线: {percentiles}")
-            self.logger.info(f"样式参数: color={percentile_color}, linewidth={percentile_linewidth}, linestyle={percentile_linestyle}, alpha={percentile_alpha}")
-            self.logger.info(f"X轴模式: {'频率' if xaxis_frequency else '周期'}")
-            self.logger.info(f"使用axes: {main_ax}, ylabel='{main_ax.get_ylabel()}', xlabel='{main_ax.get_xlabel()}'")
-            
-            # 绘制每个百分位数线
-            for percentile in percentiles:
-                try:
-                    # 使用PPSD的get_percentile方法获取百分位数数据
-                    periods, psd_values = ppsd.get_percentile(percentile)
-                    
-                    self.logger.debug(f"第{percentile}百分位数数据: periods长度={len(periods)}, psd_values长度={len(psd_values)}")
-                    
-                    # 根据xaxis_frequency设置确定X轴数据
-                    if xaxis_frequency:
-                        # 如果X轴显示频率，将周期转换为频率
-                        x_data = 1.0 / periods
-                        x_label = "频率"
-                    else:
-                        # 如果X轴显示周期，直接使用周期数据
-                        x_data = periods
-                        x_label = "周期"
-                    
-                    # 绘制自定义样式的百分位数线
-                    line = main_ax.plot(x_data, psd_values,
-                                  color=percentile_color,
-                                  linewidth=percentile_linewidth,
-                                  linestyle=percentile_linestyle,
-                                  alpha=percentile_alpha,
-                                  zorder=100,  # 确保线条在最前景，高于数据覆盖度显示
-                                  label=f'{percentile}th percentile')[0]
-                    
-                    self.logger.info(f"成功添加百分位数线 ({x_label}坐标)")
-                    
-                except Exception as e:
-                    self.logger.error(f"无法绘制第{percentile}百分位数线: {e}")
-            
-        except Exception as e:
-            self.logger.error(f"添加自定义百分位数线失败: {e}")
-    
-    def _add_custom_peterson_curves(self, args: Dict):
-        """添加自定义样式的皮特森曲线（NLNM和NHNM）"""
-        try:
-            from obspy.signal.spectral_estimation import get_nlnm, get_nhnm
-            
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
-            
-            # 找到主要的PPSD绘图区域（通常是最大的axes或包含PPSD数据的axes）
-            main_ax = None
-            if len(axes) == 1:
-                # 只有一个axes，直接使用
-                main_ax = axes[0]
-            else:
-                # 多个axes的情况，找到主要的PPSD绘图区域
-                # 主要的PPSD axes通常有以下特征：
-                # 1. Y轴标签包含"Power"或"dB"
-                # 2. X轴标签包含"Period"或"Frequency"
-                # 3. 位置较大（不是小的coverage子图）
-                for ax in axes:
-                    ylabel = ax.get_ylabel().lower()
-                    xlabel = ax.get_xlabel().lower()
-                    # 检查是否是主要的PPSD绘图区域
-                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
-                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
-                        main_ax = ax
-                        break
-                
-                # 如果没有找到，使用第一个axes
-                if main_ax is None:
-                    main_ax = axes[0]
-            
-            # 获取自定义样式参数
-            peterson_linewidth = args.get('peterson_linewidth', 1.5)
-            peterson_linestyle = args.get('peterson_linestyle', '-')
-            peterson_alpha = args.get('peterson_alpha', 0.9)
-            
-            # 获取NLNM和NHNM颜色设置（必须单独指定）
-            nlnm_color = args.get('peterson_nlnm_color', 'black')
-            nhnm_color = args.get('peterson_nhnm_color', 'black')
-            
-            # 检查X轴是否显示频率
-            xaxis_frequency = args.get('xaxis_frequency', False)
-            
-            self.logger.info("添加自定义皮特森曲线")
-            self.logger.info(f"X轴模式: {'频率' if xaxis_frequency else '周期'}")
-            self.logger.info(f"使用axes: {main_ax}, ylabel='{main_ax.get_ylabel()}', xlabel='{main_ax.get_xlabel()}'")
-            self.logger.info(f"坐标轴范围: X={main_ax.get_xlim()}, Y={main_ax.get_ylim()}")
-            self.logger.info(f"NLNM样式: color={nlnm_color}, linewidth={peterson_linewidth}, linestyle={peterson_linestyle}, alpha={peterson_alpha}")
-            self.logger.info(f"NHNM样式: color={nhnm_color}, linewidth={peterson_linewidth}, linestyle={peterson_linestyle}, alpha={peterson_alpha}")
-            
-            # 获取NLNM数据并绘制
-            try:
-                nlnm_periods, nlnm_psd = get_nlnm()
-                
-                if xaxis_frequency:
-                    # 如果X轴显示频率，将周期转换为频率
-                    nlnm_x_data = 1.0 / nlnm_periods
-                    x_label = "频率"
-                else:
-                    # 如果X轴显示周期，直接使用周期数据
-                    nlnm_x_data = nlnm_periods
-                    x_label = "周期"
-                
-                main_ax.plot(nlnm_x_data, nlnm_psd,
-                       color=nlnm_color,
-                       linewidth=peterson_linewidth,
-                       linestyle=peterson_linestyle,
-                       alpha=peterson_alpha,
-                       zorder=100,  # 确保在最前景，高于数据覆盖度显示
-                       label='NLNM')
-                self.logger.info(f"成功添加NLNM曲线 ({x_label}坐标)")
-            except Exception as e:
-                self.logger.error(f"无法绘制NLNM曲线: {e}")
-            
-            # 获取NHNM数据并绘制
-            try:
-                nhnm_periods, nhnm_psd = get_nhnm()
-                
-                if xaxis_frequency:
-                    # 如果X轴显示频率，将周期转换为频率
-                    nhnm_x_data = 1.0 / nhnm_periods
-                    x_label = "频率"
-                else:
-                    # 如果X轴显示周期，直接使用周期数据
-                    nhnm_x_data = nhnm_periods
-                    x_label = "周期"
-                
-                main_ax.plot(nhnm_x_data, nhnm_psd,
-                       color=nhnm_color,
-                       linewidth=peterson_linewidth,
-                       linestyle=peterson_linestyle,
-                       alpha=peterson_alpha,
-                       zorder=100,  # 确保在最前景，高于数据覆盖度显示
-                       label='NHNM')
-                self.logger.info(f"成功添加NHNM曲线 ({x_label}坐标)")
-            except Exception as e:
-                self.logger.error(f"无法绘制NHNM曲线: {e}")
-                
-        except Exception as e:
-            self.logger.error(f"添加自定义皮特森曲线失败: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-    
-    def _add_custom_mode_line(self, ppsd: PPSD, args: Dict):
-        """添加自定义样式的众数线"""
-        try:
-            import numpy as np
-            
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
-            
-            # 找到主要的PPSD绘图区域
-            main_ax = None
-            if len(axes) == 1:
-                main_ax = axes[0]
-            else:
-                for ax in axes:
-                    ylabel = ax.get_ylabel().lower()
-                    xlabel = ax.get_xlabel().lower()
-                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
-                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
-                        main_ax = ax
-                        break
-                if main_ax is None:
-                    main_ax = axes[0]
-            
-            # 获取自定义样式参数
-            mode_color = args.get('mode_color', 'orange')
-            mode_linewidth = args.get('mode_linewidth', 2.0)
-            mode_linestyle = args.get('mode_linestyle', '-')
-            mode_alpha = args.get('mode_alpha', 0.9)
-            
-            self.logger.info("添加自定义众数线")
-            self.logger.info(f"样式参数: color={mode_color}, linewidth={mode_linewidth}, linestyle={mode_linestyle}, alpha={mode_alpha}")
-            
-            # 使用ObsPy的get_mode方法获取正确的众数数据
-            try:
-                periods, mode_values = ppsd.get_mode()
-                
-                self.logger.debug(f"众数数据: periods长度={len(periods)}, mode_values长度={len(mode_values)}")
-                self.logger.debug(f"周期范围: {periods.min():.4f} - {periods.max():.1f} 秒")
-                self.logger.debug(f"众数dB范围: {mode_values.min():.1f} - {mode_values.max():.1f}")
-                
-                # 检查X轴是否显示频率
-                xaxis_frequency = args.get('xaxis_frequency', False)
-                
-                if xaxis_frequency:
-                    # 如果X轴显示频率，将周期转换为频率
-                    x_data = 1.0 / periods
-                    x_label = "频率"
-                else:
-                    # 如果X轴显示周期，直接使用周期数据
-                    x_data = periods
-                    x_label = "周期"
-                
-                # 过滤掉NaN值
-                valid_mask = ~(np.isnan(mode_values) | np.isnan(x_data))
-                valid_count = np.sum(valid_mask)
-                
-                self.logger.debug(f"有效众数点数: {valid_count}/{len(mode_values)}")
-                
-                if valid_count > 0:
-                    main_ax.plot(x_data[valid_mask], mode_values[valid_mask],
-                                color=mode_color,
-                                linewidth=mode_linewidth,
-                                linestyle=mode_linestyle,
-                                alpha=mode_alpha,
-                                label='Mode (众数)',
-                                zorder=999)  # 使用非常高的zorder确保在最顶层
-                    
-                    # 调试信息：打印绘制的数据范围
-                    self.logger.info(f"众数线数据范围: {x_label} {x_data[valid_mask].min():.4f}-{x_data[valid_mask].max():.1f}, dB {mode_values[valid_mask].min():.1f}-{mode_values[valid_mask].max():.1f}")
-                    self.logger.info(f"成功添加众数线，包含 {valid_count} 个数据点")
-                else:
-                    self.logger.warning("众数线数据全为NaN，跳过绘制")
-                    
-            except Exception as mode_error:
-                self.logger.warning(f"使用get_mode()方法失败: {mode_error}")
-                self.logger.info("回退到使用ObsPy原生众数线")
-                
-                # 如果get_mode失败，建议用户使用ObsPy原生的show_mode=True
-                self.logger.info("建议在配置中使用 show_mode=true 而不是自定义众数线样式")
-                
-        except Exception as e:
-            self.logger.error(f"添加自定义众数线失败: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-    
-    def _add_custom_mean_line(self, ppsd: PPSD, args: Dict):
-        """添加自定义样式的均值线"""
-        try:
-            import numpy as np
-            
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
-            
-            # 找到主要的PPSD绘图区域
-            main_ax = None
-            if len(axes) == 1:
-                main_ax = axes[0]
-            else:
-                for ax in axes:
-                    ylabel = ax.get_ylabel().lower()
-                    xlabel = ax.get_xlabel().lower()
-                    if ('power' in ylabel or 'db' in ylabel or 'psd' in ylabel) and \
-                       ('period' in xlabel or 'frequency' in xlabel or 'hz' in xlabel):
-                        main_ax = ax
-                        break
-                if main_ax is None:
-                    main_ax = axes[0]
-            
-            # 获取自定义样式参数
-            mean_color = args.get('mean_color', 'green')
-            mean_linewidth = args.get('mean_linewidth', 2.0)
-            mean_linestyle = args.get('mean_linestyle', '-')
-            mean_alpha = args.get('mean_alpha', 0.9)
-            
-            self.logger.info("添加自定义均值线")
-            self.logger.info(f"样式参数: color={mean_color}, linewidth={mean_linewidth}, linestyle={mean_linestyle}, alpha={mean_alpha}")
-            
-            # 使用ObsPy的get_mean方法获取正确的均值数据
-            try:
-                periods, mean_values = ppsd.get_mean()
-                
-                self.logger.debug(f"均值数据: periods长度={len(periods)}, mean_values长度={len(mean_values)}")
-                self.logger.debug(f"周期范围: {periods.min():.4f} - {periods.max():.1f} 秒")
-                self.logger.debug(f"均值dB范围: {mean_values.min():.1f} - {mean_values.max():.1f}")
-                
-                # 检查X轴是否显示频率
-                xaxis_frequency = args.get('xaxis_frequency', False)
-                
-                if xaxis_frequency:
-                    # 如果X轴显示频率，将周期转换为频率
-                    x_data = 1.0 / periods
-                    x_label = "频率"
-                else:
-                    # 如果X轴显示周期，直接使用周期数据
-                    x_data = periods
-                    x_label = "周期"
-                
-                # 过滤掉NaN值
-                valid_mask = ~(np.isnan(mean_values) | np.isnan(x_data))
-                valid_count = np.sum(valid_mask)
-                
-                self.logger.debug(f"有效均值点数: {valid_count}/{len(mean_values)}")
-                
-                if valid_count > 0:
-                    main_ax.plot(x_data[valid_mask], mean_values[valid_mask],
-                                color=mean_color,
-                                linewidth=mean_linewidth,
-                                linestyle=mean_linestyle,
-                                alpha=mean_alpha,
-                                label='Mean (均值)',
-                                zorder=998)  # 使用高的zorder但比众数线低一点
-                    
-                    # 调试信息：打印绘制的数据范围
-                    self.logger.info(f"均值线数据范围: {x_label} {x_data[valid_mask].min():.4f}-{x_data[valid_mask].max():.1f}, dB {mean_values[valid_mask].min():.1f}-{mean_values[valid_mask].max():.1f}")
-                    self.logger.info(f"成功添加均值线，包含 {valid_count} 个数据点")
-                else:
-                    self.logger.warning("均值线数据全为NaN，跳过绘制")
-                    
-            except Exception as mean_error:
-                self.logger.warning(f"使用get_mean()方法失败: {mean_error}")
-                self.logger.info("回退到使用ObsPy原生均值线")
-                
-                # 如果get_mean失败，建议用户使用ObsPy原生的show_mean=True
-                self.logger.info("建议在配置中使用 show_mean=true 而不是自定义均值线样式")
-                
-        except Exception as e:
-            self.logger.error(f"添加自定义均值线失败: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-    
-    def _plot_temporal(self, ppsd: PPSD, args: Dict):
-        """绘制时间演化图"""
-        periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
         
-        # 使用最简单的参数调用
-        ppsd.plot_temporal(periods)
-    
-    def _plot_spectrogram(self, ppsd: PPSD, args: Dict):
-        """绘制频谱图"""
-        plot_params = {
-            'cmap': args.get('spectrogram_cmap', 'viridis')
-        }
-        
-        if 'clim' in args:
-            plot_params['clim'] = args['clim']
-        
-        ppsd.plot_spectrogram(**plot_params)
-    
-    def _modify_coverage_transparency(self, alpha: float = 0.5):
-        """修改数据覆盖度显示的透明度
-        
-        Parameters:
-            alpha: 透明度值 (0.0-1.0)，默认0.5表示50%透明度
-        """
-        try:
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
+        # 添加包含时间范围的标题
+        if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
+            start_time = min(ppsd.times_processed)
+            end_time = max(ppsd.times_processed)
             
-            coverage_elements_modified = 0
-            
-            # 遍历所有axes，寻找coverage相关的图形元素
-            for ax in axes:
-                # 查找coverage相关的matplotlib patch对象
-                for patch in ax.patches:
-                    # 直接修改所有patch的透明度（包括Polygon、Rectangle等）
-                    # coverage的patch通常位于图的上方区域
-                    try:
-                        patch.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改patch透明度: {e}")
-                        
-                # 也检查是否有通过collections添加的coverage元素
-                for collection in ax.collections:
-                    try:
-                        # 修改collection的透明度
-                        collection.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改collection透明度: {e}")
-                        
-                # 检查Line2D对象（可能是coverage的线条）
-                for line in ax.get_lines():
-                    # 检查是否是coverage相关的线条（通常y坐标较高）
-                    try:
-                        ydata = line.get_ydata()
-                        if len(ydata) > 0 and hasattr(line, '_original_alpha'):
-                            # 这是我们之前处理过的线条，跳过
-                            continue
-                        # 为coverage线条设置透明度
-                        # 保存原始透明度
-                        line._original_alpha = line.get_alpha() or 1.0
-                        line.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改line透明度: {e}")
-            
-            if coverage_elements_modified > 0:
-                self.logger.info(f"成功设置数据覆盖度透明度为 {alpha}，修改了 {coverage_elements_modified} 个元素")
-            else:
-                self.logger.warning("未找到可修改的数据覆盖度元素")
-            
-        except Exception as e:
-            self.logger.warning(f"修改数据覆盖度透明度失败: {e}")
-    
-    def _is_grouped_config_structure(self, config: Dict) -> bool:
-        """检查配置文件是否为分组结构
-        
-        检查配置是否包含分组配置的特征结构：
-        - [global] 节
-        - [paths] 节  
-        - [standard] 或 [standard.percentiles] 等嵌套节
-        """
-        # 检查是否包含分组配置的特征节
-        has_global = 'global' in config
-        has_paths = 'paths' in config
-        has_plotting = 'plotting' in config
-        has_standard = 'standard' in config
-        
-        # 检查是否有嵌套结构
-        has_nested_structure = False
-        if has_standard:
-            standard_section = config['standard']
-            if isinstance(standard_section, dict):
-                # 检查是否有 percentiles, peterson 等子节
-                has_nested_structure = (
-                    'percentiles' in standard_section or
-                    'peterson' in standard_section or
-                    'mode' in standard_section or
-                    'mean' in standard_section
-                )
-        
-        # 如果有多个特征节存在，认为是分组配置
-        structure_score = sum([has_global, has_paths, has_plotting, has_standard, has_nested_structure])
-        
-        return structure_score >= 3  # 至少有3个特征才认为是分组配置
-    
-    def run(self):
-        """运行主处理流程"""
-        try:
-            self.logger.info("开始PPSD处理流程")
-            self.logger.info(f"加载了 {len(self.configs)} 个配置文件")
-            
-            # 分离计算型和绘图型配置
-            calc_configs = [c for c in self.configs if self._is_calculation_config(c)]
-            plot_configs = [c for c in self.configs if self._is_plot_config(c)]
-            
-            self.logger.info(f"计算型配置: {len(calc_configs)} 个")
-            self.logger.info(f"绘图型配置: {len(plot_configs)} 个")
-            
-            # 执行计算
-            for config in calc_configs:
-                try:
-                    self.calculate_ppsd(config)
-                except Exception as e:
-                    self.logger.error(f"计算失败: {e}")
-                    if len(calc_configs) == 1:  # 如果只有一个计算配置，抛出异常
-                        raise
-            
-            # 执行绘图
-            for config in plot_configs:
-                try:
-                    self.plot_ppsd(config)
-                except Exception as e:
-                    self.logger.error(f"绘图失败: {e}")
-                    if len(plot_configs) == 1:  # 如果只有一个绘图配置，抛出异常
-                        raise
-            
-            self.logger.info("PPSD处理流程完成")
-            
-        except Exception as e:
-            self.logger.error(f"处理流程失败: {e}")
-            self.logger.debug(traceback.format_exc())
-            raise
+            seed_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+            title = (f"{seed_id}\n"
+                    f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                    f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            plt.title(title)
 
 
 def main():

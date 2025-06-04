@@ -143,7 +143,7 @@ class UnifiedConfigAdapter:
         if 'plotting' in self.raw_config:
             plotting_config = self.raw_config['plotting']
             adapted.update({
-                'plot_types': plotting_config.get('plot_types', ['standard']),
+                'plot_type': plotting_config.get('plot_type', ['standard']),
                 'npz_merge_strategy': plotting_config.get(
                     'npz_merge_strategy', True),
                 'dpi': plotting_config.get('dpi', 150),
@@ -152,7 +152,7 @@ class UnifiedConfigAdapter:
             
             # 将关键参数加入args
             plotting_args.update({
-                'plot_type': plotting_config.get('plot_types', ['standard']),
+                'plot_type': plotting_config.get('plot_type', ['standard']),
                 'npz_merge_strategy': plotting_config.get(
                     'npz_merge_strategy', True)
             })
@@ -240,8 +240,8 @@ class UnifiedConfigAdapter:
             plotting_args.update({
                 'clim': spectrogram_config.get('clim', [-180, -100]),
                 'time_format_x_spectrogram': spectrogram_config.get('time_format_x', '%Y-%m-%d'),
-                'spectrogram_grid': spectrogram_config.get('grid', True),
-                'spectrogram_cmap': spectrogram_config.get('cmap', 'viridis')
+                'spectrogram_grid': spectrogram_config.get('spectrogram_grid', True),
+                'spectrogram_cmap': spectrogram_config.get('spectrogram_cmap', 'viridis')
             })
         
         # 7. 处理advanced配置
@@ -274,7 +274,7 @@ class UnifiedConfigAdapter:
         
         # 设置默认值
         plotting_args = {
-            'plot_type': adapted.get('plot_types', ['standard']),
+            'plot_type': adapted.get('plot_type', ['standard']),
             'npz_merge_strategy': adapted.get('npz_merge_strategy', True)
         }
         
@@ -318,8 +318,8 @@ class UnifiedConfigAdapter:
             plotting_args.update({
                 'clim': spectrogram_config.get('clim', [-180, -100]),
                 'time_format_x_spectrogram': spectrogram_config.get('time_format_x', '%Y-%m-%d'),
-                'spectrogram_grid': spectrogram_config.get('grid', True),
-                'spectrogram_cmap': spectrogram_config.get('cmap', 'viridis')
+                'spectrogram_grid': spectrogram_config.get('spectrogram_grid', True),
+                'spectrogram_cmap': spectrogram_config.get('spectrogram_cmap', 'viridis')
             })
         
         # 将args添加到适配后的配置中
@@ -427,8 +427,8 @@ class UnifiedConfigAdapter:
             grouped_config['temporal'] = {
                 'plot_periods': temporal_config.get('plot_periods', [1.0, 8.0, 20.0]),
                 'time_format_x': temporal_config.get('time_format_x', '%H:%M'),
-                'grid': temporal_config.get('grid', True),
-                'cmap': temporal_config.get('cmap', 'Blues')
+                'temporal_grid': temporal_config.get('temporal_grid', True),
+                'temporal_cmap': temporal_config.get('temporal_cmap', 'Blues')
             }
         
         # 转换spectrogram配置
@@ -437,8 +437,8 @@ class UnifiedConfigAdapter:
             grouped_config['spectrogram'] = {
                 'clim': spectrogram_config.get('clim', [-180, -100]),
                 'time_format_x': spectrogram_config.get('time_format_x', '%Y-%m-%d'),
-                'grid': spectrogram_config.get('grid', True),
-                'cmap': spectrogram_config.get('cmap', 'viridis')
+                'spectrogram_grid': spectrogram_config.get('spectrogram_grid', True),
+                'spectrogram_cmap': spectrogram_config.get('spectrogram_cmap', 'viridis')
             }
         
         return grouped_config
