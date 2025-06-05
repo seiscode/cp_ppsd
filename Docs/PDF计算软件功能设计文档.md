@@ -306,7 +306,7 @@ xaxis_frequency = false             # (standard) PPSD标准图X轴是否显示�
 cumulative_plot = false             # (standard) 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)。
 show_coverage = true                # (standard) 是否显示数据覆盖度。
 cumulative_number_of_colors = 20    # (standard) 累积直方图的离散颜色数量。
-max_num_face_colors = 30            # (standard) PPSD标准图中概率面元的最大颜色数量(此为脚本自定义参数，非直接ObsPy参数)
+
 standard_cmap = "pqlx"              # (standard) PPSD图的颜色映射方案。例如 "viridis", "plasma", "obspy_sequential", "pqlx"。
 
 # --- "spectrogram" (PPSD.plot_spectrogram) 图特定选项 ---
@@ -431,9 +431,7 @@ temporal_cmap = "viridis"                # (temporal) PPSD图的颜色映射方�
     *   **ObsPy对应**: `PPSD.plot(cumulative_number_of_colors=...)`
     *   **示例**: `cumulative_number_of_colors = 20`
 
--   **`max_num_face_colors`** (整数)
-    *   **作用**: (此参数为脚本自定义，非直接ObsPy参数) 用于 `"standard"` PPSD图，建议控制概率密度着色时使用的离散颜色（面元）的最大数量。影响颜色过渡的平滑度。
-    *   **示例**: `max_num_face_colors = 30`
+
 
 -   **`standard_cmap`** (字符串)
     *   **作用**: 指定PPSD标准图的颜色映射方案 (colormap)。
@@ -529,7 +527,7 @@ temporal_cmap = "viridis"                # (temporal) PPSD图的颜色映射方�
 ppsd_length = 1800          # 减少窗口长度 (会影响低频分辨率)
 period_step_octaves = 0.25  # 增加周期步长 (降低频率点密度)
 db_bins = [-180, -80, 0.5]  # 减少dB分箱的范围或增大步长 (降低功率分辨率)
-max_num_face_colors = 20    # (如果使用绘图配置) 减少标准PPSD图的颜色数量
+
 ```
 同时，如果主要目的是计算NPZ，确保不传递绘图配置文件，反之亦然，以避免不必要的操作消耗内存。
 

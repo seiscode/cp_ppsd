@@ -24,8 +24,7 @@ output_filename_pattern = "{plot_type}_test_{datetime}_{network}-{station}-{loca
 [plotting]
 plot_types = ["standard"]  # 只生成standard图像来测试period_lim
 npz_merge_strategy = true
-dpi = 150
-figure_size = [12, 8]
+# 图像参数已硬编码：dpi=300, figure_size自动适应
 
 # ========================================
 # 4. 标准图配置
@@ -45,7 +44,7 @@ xaxis_frequency = true                 # X轴显示频率
 cumulative_plot = false
 coverage_alpha = 0.5
 cumulative_number_of_colors = 25
-max_num_face_colors = 40
+
 standard_cmap = "viridis"             # 使用标准配色方案而非自定义
 
 # 标准图样式子分组

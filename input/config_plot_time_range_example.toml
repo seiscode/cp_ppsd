@@ -36,8 +36,7 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 [plotting]
 plot_types = ["standard", "temporal", "spectrogram"]
 npz_merge_strategy = "auto"  # 合并策略，显示时间范围
-dpi = 150
-figure_size = [12, 8]
+# 图像参数已硬编码：dpi=300, figure_size自动适应
 
 # ========================================
 # 4. 标准图配置

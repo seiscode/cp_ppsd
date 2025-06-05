@@ -42,6 +42,32 @@ class GroupedConfigAdapter:
         self.raw_config = self._load_config()
         self.adapted_config = self._adapt_config()
     
+    def _convert_npz_merge_strategy(self, value: Any) -> bool:
+        """转换 npz_merge_strategy 参数值
+        
+        Args:
+            value: 可能是字符串("auto", "none")或布尔值(True, False)
+            
+        Returns:
+            bool: True 表示合并, False 表示不合并
+        """
+        if isinstance(value, str):
+            if value.lower() == "auto":
+                return True
+            elif value.lower() == "none":
+                return False
+            else:
+                print(f"警告: 未知的 npz_merge_strategy 值 '{value}'，"
+                      f"使用默认值 True (合并)")
+                return True
+        elif isinstance(value, bool):
+            # 布尔值直接返回
+            return value
+        else:
+            print(f"警告: npz_merge_strategy 参数类型错误 {type(value)}，"
+                  f"使用默认值 True (合并)")
+            return True
+
     def _load_config(self) -> Dict[str, Any]:
         """加载原始配置文件"""
         try:
@@ -79,14 +105,14 @@ class GroupedConfigAdapter:
             plotting_config = self.raw_config['plotting']
             adapted.update({
                 'plot_types': plotting_config.get('plot_types', ['standard']),
-                'npz_merge_strategy': plotting_config.get('npz_merge_strategy', True),
+                'npz_merge_strategy': self._convert_npz_merge_strategy(plotting_config.get('npz_merge_strategy', True)),
                             # dpi 和 figure_size 已硬编码，不再从配置读取
             })
             
             # 将绘图类型和合并策略也加入args中（程序期望从args获取）
             plotting_args.update({
                 'plot_type': plotting_config.get('plot_types', ['standard']),
-                'npz_merge_strategy': plotting_config.get('npz_merge_strategy', True)
+                'npz_merge_strategy': self._convert_npz_merge_strategy(plotting_config.get('npz_merge_strategy', True))
             })
         
         # 4. 处理standard配置及其子分组 - 包装到args中
@@ -96,14 +122,16 @@ class GroupedConfigAdapter:
             # 基础standard配置
             plotting_args.update({
                 'show_histogram': standard_config.get('show_histogram', True),
-                'show_coverage': standard_config.get('show_coverage', False),
-                'coverage_alpha': standard_config.get('coverage_alpha', 0.5),
+                'show_percentiles': standard_config.get('show_percentiles', False),
+                'show_noise_models': standard_config.get('show_noise_models', True),
+                'show_mode': standard_config.get('show_mode', True),
+                'show_mean': standard_config.get('show_mean', False),
                 'standard_grid': standard_config.get('standard_grid', True),
-                'period_lim': standard_config.get('period_lim', [0.01, 1000.0]),
+                'period_lim': standard_config.get('period_lim', [0.02, 50.0]),
                 'xaxis_frequency': standard_config.get('xaxis_frequency', False),
                 'cumulative_plot': standard_config.get('cumulative_plot', False),
                 'cumulative_number_of_colors': standard_config.get('cumulative_number_of_colors', 25),
-                'standard_cmap': standard_config.get('standard_cmap', 'viridis')
+                'standard_cmap': standard_config.get('standard_cmap', 'hot_r_custom')
             })
             
             # 显示开关

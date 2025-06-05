@@ -56,8 +56,7 @@ class ConfigAdapter:
         # 2. 处理显示设置
         if 'display' in self.raw_config:
             display_config = self.raw_config['display']
-            adapted['dpi'] = display_config.get('dpi', 150)
-            adapted['figure_size'] = display_config.get('figure_size', [12, 8])
+                    # dpi 和 figure_size 已硬编码，不再从配置读取
         
         # 3. 处理标准图基础设置
         if 'standard' in self.raw_config and 'basic' in self.raw_config['standard']:
@@ -66,13 +65,16 @@ class ConfigAdapter:
                 'plot_types': basic_config.get('plot_types', ["standard"]),
                 'npz_merge_strategy': basic_config.get('npz_merge_strategy', True),
                 'show_histogram': basic_config.get('show_histogram', True),
-                'show_coverage': basic_config.get('show_coverage', False),
+                'show_percentiles': basic_config.get('show_percentiles', False),
+                'show_noise_models': basic_config.get('show_noise_models', True),
+                'show_mode': basic_config.get('show_mode', True),
+                'show_mean': basic_config.get('show_mean', False),
                 'coverage_alpha': basic_config.get('coverage_alpha', 0.5),
                 'period_lim': basic_config.get('period_lim', [0.01, 1000.0]),
                 'xaxis_frequency': basic_config.get('xaxis_frequency', False),
                 'cumulative_plot': basic_config.get('cumulative_plot', False),
                 'cumulative_number_of_colors': basic_config.get('cumulative_number_of_colors', 25),
-                'max_num_face_colors': basic_config.get('max_num_face_colors', 40),
+        
                 'standard_cmap': basic_config.get('standard_cmap', 'viridis'),
                 'grid': basic_config.get('standard_grid', True)
             })

@@ -142,18 +142,21 @@ class UnifiedConfigAdapter:
         plotting_args = {}
         if 'plotting' in self.raw_config:
             plotting_config = self.raw_config['plotting']
+            
+            # 正确处理 npz_merge_strategy 转换
+            npz_strategy_raw = plotting_config.get('npz_merge_strategy', 'auto')
+            npz_strategy_converted = self._convert_npz_merge_strategy(npz_strategy_raw)
+            
             adapted.update({
                 'plot_type': plotting_config.get('plot_type', ['standard']),
-                'npz_merge_strategy': plotting_config.get(
-                    'npz_merge_strategy', True),
+                'npz_merge_strategy': npz_strategy_converted,
                             # dpi 和 figure_size 已硬编码，不再从配置读取
             })
             
             # 将关键参数加入args
             plotting_args.update({
                 'plot_type': plotting_config.get('plot_type', ['standard']),
-                'npz_merge_strategy': plotting_config.get(
-                    'npz_merge_strategy', True)
+                'npz_merge_strategy': npz_strategy_converted
             })
         
         # 4. 处理standard配置及其子分组
@@ -163,14 +166,16 @@ class UnifiedConfigAdapter:
             # 基础standard配置
             plotting_args.update({
                 'show_histogram': standard_config.get('show_histogram', True),
-                'show_coverage': standard_config.get('show_coverage', False),
-                'coverage_alpha': standard_config.get('coverage_alpha', 0.5),
+                'show_percentiles': standard_config.get('show_percentiles', False),
+                'show_noise_models': standard_config.get('show_noise_models', True),
+                'show_mode': standard_config.get('show_mode', True),
+                'show_mean': standard_config.get('show_mean', False),
                 'standard_grid': standard_config.get('standard_grid', True),
-                'period_lim': standard_config.get('period_lim', [0.01, 1000.0]),
+                'period_lim': standard_config.get('period_lim', [0.02, 50.0]),
                 'xaxis_frequency': standard_config.get('xaxis_frequency', False),
                 'cumulative_plot': standard_config.get('cumulative_plot', False),
                 'cumulative_number_of_colors': standard_config.get('cumulative_number_of_colors', 25),
-                'standard_cmap': standard_config.get('standard_cmap', 'viridis')
+                'standard_cmap': standard_config.get('standard_cmap', 'hot_r_custom'),
             })
             
             # 显示开关
@@ -185,7 +190,7 @@ class UnifiedConfigAdapter:
             if 'percentiles' in standard_config:
                 percentiles_config = standard_config['percentiles']
                 plotting_args.update({
-                    'percentiles': percentiles_config.get('values', [10, 50, 90]),
+                    'percentile_values': percentiles_config.get('values', [10, 50, 90]),
                     'percentile_color': percentiles_config.get('color', 'lightgray'),
                     'percentile_linewidth': percentiles_config.get('linewidth', 1.0),
                     'percentile_linestyle': percentiles_config.get('linestyle', '--'),
@@ -196,11 +201,11 @@ class UnifiedConfigAdapter:
             if 'peterson' in standard_config:
                 peterson_config = standard_config['peterson']
                 plotting_args.update({
-                    'peterson_nlnm_color': peterson_config.get('nlnm_color', 'blue'),
-                    'peterson_nhnm_color': peterson_config.get('nhnm_color', 'red'),
+                    'peterson_nlnm_color': peterson_config.get('nlnm_color', 'lightgray'),
+                    'peterson_nhnm_color': peterson_config.get('nhnm_color', 'lightgray'),
                     'peterson_linewidth': peterson_config.get('linewidth', 1.0),
                     'peterson_linestyle': peterson_config.get('linestyle', '--'),
-                    'peterson_alpha': peterson_config.get('alpha', 0.8)
+                    'peterson_alpha': peterson_config.get('alpha', 1.0)
                 })
             
             # 处理mode和mean子分组
@@ -271,10 +276,13 @@ class UnifiedConfigAdapter:
             if not isinstance(value, dict):
                 adapted[key] = value
         
-        # 设置默认值
+        # 设置默认值，正确处理 npz_merge_strategy 转换
+        npz_strategy_raw = adapted.get('npz_merge_strategy', 'auto')
+        npz_strategy_converted = self._convert_npz_merge_strategy(npz_strategy_raw)
+        
         plotting_args = {
             'plot_type': adapted.get('plot_type', ['standard']),
-            'npz_merge_strategy': adapted.get('npz_merge_strategy', True)
+            'npz_merge_strategy': npz_strategy_converted
         }
         
         # 2. 处理standard分组
@@ -284,12 +292,10 @@ class UnifiedConfigAdapter:
             # 基础配置
             plotting_args.update({
                 'show_histogram': standard_config.get('show_histogram', True),
-                'show_coverage': standard_config.get('show_coverage', False),
                 'show_percentiles': standard_config.get('show_percentiles', True),
                 'show_noise_models': standard_config.get('show_noise_models', True),
                 'show_mode': standard_config.get('show_mode', False),
                 'show_mean': standard_config.get('show_mean', False),
-                'percentiles': standard_config.get('percentiles', [10, 50, 90]),
                 'period_lim': standard_config.get('period_lim', [0.01, 1000.0]),
                 'xaxis_frequency': standard_config.get('xaxis_frequency', False),
                 'cumulative_plot': standard_config.get('cumulative_plot', False)
@@ -395,7 +401,6 @@ class UnifiedConfigAdapter:
                 'show_histogram': standard_config.get('show_histogram', self.raw_config.get('show_histogram', True)),
                 'show_percentiles': standard_config.get('show_percentiles', self.raw_config.get('show_percentiles', True)),
                 'show_noise_models': standard_config.get('show_noise_models', self.raw_config.get('show_noise_models', True)),
-                'show_coverage': standard_config.get('show_coverage', self.raw_config.get('show_coverage', False)),
                 'show_mode': standard_config.get('show_mode', self.raw_config.get('show_mode', False)),
                 'show_mean': standard_config.get('show_mean', self.raw_config.get('show_mean', False)),
                 'standard_grid': standard_config.get('grid', self.raw_config.get('standard_grid', True)),
@@ -403,20 +408,24 @@ class UnifiedConfigAdapter:
                 'xaxis_frequency': standard_config.get('xaxis_frequency', self.raw_config.get('xaxis_frequency', False)),
                 'cumulative_plot': standard_config.get('cumulative_plot', self.raw_config.get('cumulative_plot', False)),
                 'standard_cmap': standard_config.get('cmap', self.raw_config.get('standard_cmap', 'viridis')),
-                'percentiles': {
-                    'values': standard_config.get('percentiles', self.raw_config.get('percentiles', [10, 50, 90])),
-                    'color': 'lightgray',
-                    'linewidth': 1.0,
-                    'linestyle': '--',
-                    'alpha': 0.8
-                },
-                'peterson': {
-                    'nlnm_color': 'blue',
-                    'nhnm_color': 'red',
-                    'linewidth': 1.0,
-                    'linestyle': '--',
-                    'alpha': 0.8
-                }
+                'percentile_values': standard_config.get('percentiles', self.raw_config.get('percentiles', [10, 50, 90])),
+                'percentile_color': 'lightgray',
+                'percentile_linewidth': 1.0,
+                'percentile_linestyle': '--',
+                'percentile_alpha': 0.8,
+                'peterson_nlnm_color': 'blue',
+                'peterson_nhnm_color': 'red',
+                'peterson_linewidth': 1.0,
+                'peterson_linestyle': '--',
+                'peterson_alpha': 0.8,
+                'mode_color': 'orange',
+                'mode_linewidth': 1.0,
+                'mode_linestyle': '-',
+                'mode_alpha': 0.9,
+                'mean_color': 'green',
+                'mean_linewidth': 1.0,
+                'mean_linestyle': '-',
+                'mean_alpha': 0.9
             }
         
         # 转换temporal配置
@@ -451,6 +460,34 @@ class UnifiedConfigAdapter:
             print(f"配置已保存为精细分组格式: {output_path}")
         except Exception as e:
             print(f"保存配置文件失败: {e}")
+
+    def _convert_npz_merge_strategy(self, value: Any) -> bool:
+        """转换 npz_merge_strategy 参数值
+        
+        Args:
+            value: 可能是字符串("auto", "none")或布尔值(True, False)
+            
+        Returns:
+            bool: True 表示合并, False 表示不合并
+        """
+        if isinstance(value, str):
+            if value.lower() == "auto":
+                return True
+            elif value.lower() == "none":
+                return False
+            else:
+                # 未知字符串值，记录警告并使用默认值
+                print(f"警告: 未知的 npz_merge_strategy 值 '{value}'，"
+                      f"使用默认值 True (合并)")
+                return True
+        elif isinstance(value, bool):
+            # 布尔值直接返回
+            return value
+        else:
+            # 非字符串非布尔值，使用默认值
+            print(f"警告: npz_merge_strategy 参数类型错误 {type(value)}，"
+                  f"使用默认值 True (合并)")
+            return True
 
 
 def demonstrate_unified_adapter():

@@ -657,12 +657,12 @@ class PPSDProcessor:
             self.logger.info(f"在 {input_npz_dir} 中找到 {len(npz_files)} 个NPZ文件")
             
         # 获取合并策略
-        npz_merge_strategy = args.get('npz_merge_strategy', 'auto')  # 'auto', 'manual', 'none'
+        npz_merge_strategy = args.get('npz_merge_strategy', True)  # True: 合并, False: 单独
         
-        if npz_merge_strategy == 'none':
+        if not npz_merge_strategy:  # False 表示单独绘图
             # 每个NPZ文件单独绘图
             self._plot_individual_npz_files(npz_files, inventory, args, output_dir, config)
-        else:
+        else:  # True 表示合并绘图
             # 按SEED ID分组并合并绘图
             self._plot_merged_npz_files(npz_files, inventory, args, output_dir, config)
         
@@ -689,6 +689,7 @@ class PPSDProcessor:
                 # 为每种绘图类型生成图像
                 for plot_type in plot_types:
                     try:
+                        # 使用专门的单个文件绘图方法
                         self._create_plot(ppsd, plot_type, unique_trace_id, args, output_dir, config)
                     except Exception as e:
                         self.logger.error(f"绘图失败 {unique_trace_id} - {plot_type}: {e}")
@@ -887,6 +888,105 @@ class PPSDProcessor:
         
         return merged_ppsd
     
+    def _create_plot(self, ppsd: PPSD, plot_type: str, trace_id: str, args: Dict, output_dir: str, config: Dict):
+        """为单个PPSD对象创建图像"""
+        self.logger.debug(f"创建 {plot_type} 图像: {trace_id}")
+        
+        # 检查PPSD对象是否有数据
+        if len(ppsd.times_processed) == 0:
+            self.logger.warning(f"跳过 {trace_id} - {plot_type}: PPSD对象没有数据")
+            return
+        
+        # 生成文件名
+        metadata = {
+            'network': ppsd.network,
+            'station': ppsd.station,
+            'location': ppsd.location,
+            'channel': ppsd.channel
+        }
+        
+        # 获取数据的开始和结束时间用于文件命名
+        if ppsd.times_processed:
+            data_start_time = min(ppsd.times_processed)
+            data_end_time = max(ppsd.times_processed)
+            self.logger.debug(f"使用数据时间范围生成文件名: {data_start_time} - {data_end_time}")
+        else:
+            data_start_time = None
+            data_end_time = None
+            self.logger.debug("没有时间信息，将使用当前时间")
+        
+        filename_pattern = config.get('output_filename_pattern', '')
+        if filename_pattern:
+            filename = self._generate_filename(filename_pattern, metadata, plot_type, data_start_time, data_end_time)
+        else:
+            # 使用默认文件命名
+            if data_start_time and data_end_time:
+                start_str = data_start_time.strftime('%Y%m%d%H%M')
+                end_str = data_end_time.strftime('%Y%m%d%H%M')
+                filename = f"{plot_type}_{start_str}_{end_str}_{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}.png"
+            else:
+                filename = f"{plot_type}_{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}.png"
+        
+        filepath = os.path.join(output_dir, filename)
+        
+        # 生成个别绘图模式的标题：第一行是SEED ID，第二行是时间范围
+        seed_id = f"{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}"
+        if data_start_time and data_end_time:
+            formatted_title = f"{seed_id}\n{data_start_time.strftime('%Y-%m-%d %H:%M')} - {data_end_time.strftime('%Y-%m-%d %H:%M')}"
+        else:
+            formatted_title = seed_id
+        
+        # 调用通用绘图方法，传递格式化的标题
+        self._draw_plot(ppsd, plot_type, args, formatted_title, is_merged=False)
+        
+        # 保存图像（保持硬编码的dpi=150）
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        self.logger.info(f"保存图像: {os.path.basename(filename)}")
+    
+    def _draw_plot(self, ppsd: PPSD, plot_type: str, args: Dict, title_prefix: str, is_merged: bool = False):
+        """通用绘图方法，处理实际的绘图逻辑"""
+        if plot_type == 'standard':
+            self._plot_standard(ppsd, args)
+            if is_merged:
+                # 合并图的标题包含时间范围
+                start_time = min(ppsd.times_processed)
+                end_time = max(ppsd.times_processed)
+                title = f"{title_prefix}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
+            else:
+                # 单个文件的标题
+                title = title_prefix
+            plt.title(title, fontsize=self._current_font_size + 1)
+            
+        elif plot_type == 'temporal':
+            self._plot_temporal(ppsd, args)
+            if is_merged:
+                start_time = min(ppsd.times_processed)
+                end_time = max(ppsd.times_processed)
+                title = (f"{title_prefix}\n"
+                        f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                        f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            else:
+                title = title_prefix
+            plt.title(title, fontsize=self._current_font_size + 1)
+            
+        elif plot_type == 'spectrogram':
+            self._plot_spectrogram(ppsd, args)
+            if is_merged:
+                start_time = min(ppsd.times_processed)
+                end_time = max(ppsd.times_processed)
+                title = (f"{title_prefix}\n"
+                        f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                        f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            else:
+                title = title_prefix
+            plt.title(title, fontsize=self._current_font_size + 1)
+            
+        else:
+            raise ValueError(f"不支持的绘图类型: {plot_type}")
+
     def _create_merged_plot_for_seed(self, ppsd: PPSD, plot_type: str, seed_id: str, args: Dict, output_dir: str, config: Dict, file_count: int):
         """为合并的PPSD对象创建图像"""
         self.logger.debug(f"创建合并 {plot_type} 图像: {seed_id} (来自{file_count}个文件)")
@@ -916,35 +1016,15 @@ class PPSDProcessor:
         if filename_pattern:
             # 修改模式以体现合并特性
             modified_pattern = filename_pattern.replace('{datetime}', f'merged_{start_str}-{end_str}')
-            filename = self._generate_filename(modified_pattern, metadata, plot_type, start_time)
+            filename = self._generate_filename(modified_pattern, metadata, plot_type, start_time, end_time)
         else:
             # 使用默认的合并文件命名
             filename = f"{plot_type}_merged_{start_str}-{end_str}_{ppsd.network}.{ppsd.station}.{ppsd.location}.{ppsd.channel}_({file_count}files).png"
         
         filepath = os.path.join(output_dir, filename)
         
-        # 绘制图像
-        if plot_type == 'standard':
-            self._plot_standard(ppsd, args)
-            # 修改标题以显示时间范围信息
-            new_title = f"{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
-            plt.title(new_title, fontsize=self._current_font_size + 1)
-        elif plot_type == 'temporal':
-            self._plot_temporal(ppsd, args)
-            # 修改标题以显示时间范围信息
-            temporal_title = (f"{seed_id}\n"
-                            f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
-                            f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-            plt.title(temporal_title, fontsize=self._current_font_size + 1)
-        elif plot_type == 'spectrogram':
-            self._plot_spectrogram(ppsd, args)
-            # 修改标题以显示时间范围信息
-            spectrogram_title = (f"{seed_id}\n"
-                               f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
-                               f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-            plt.title(spectrogram_title, fontsize=self._current_font_size + 1)
-        else:
-            raise ValueError(f"不支持的绘图类型: {plot_type}")
+        # 调用通用绘图方法
+        self._draw_plot(ppsd, plot_type, args, seed_id, is_merged=True)
         
         # 保存图像（保持硬编码的dpi=150）
         plt.tight_layout()
@@ -1012,7 +1092,7 @@ class PPSDProcessor:
                     start_str = start_time.strftime('%Y%m%d%H%M')
                     end_str = end_time.strftime('%Y%m%d%H%M')
                     filename_pattern = filename_pattern.replace('{datetime}', f'merged_{start_str}-{end_str}')
-                filename = self._generate_filename(filename_pattern, metadata, plot_type, start_time)
+                filename = self._generate_filename(filename_pattern, metadata, plot_type, start_time, end_time)
             else:
                 # 默认合并文件名
                 start_str = start_time.strftime('%Y%m%d%H%M')
@@ -1095,7 +1175,7 @@ class PPSDProcessor:
         # 准备绘图参数
         plot_params = {
             'period_lim': args.get('period_lim', [0.01, 1000.0]),
-            'show_coverage': args.get('show_coverage', True)
+            'show_coverage': False  # 禁用 ObsPy 内置的数据覆盖度显示
         }
         
         # 添加配色方案支持
@@ -1195,8 +1275,14 @@ class PPSDProcessor:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
             plot_params['cumulative'] = args['cumulative_plot']
+            self.logger.debug(f"设置累积模式: cumulative_plot={args['cumulative_plot']}")
         if 'cumulative_number_of_colors' in args:
             plot_params['cumulative_number_of_colors'] = args['cumulative_number_of_colors']
+            self.logger.debug(f"设置累积颜色数量: {args['cumulative_number_of_colors']}")
+        
+        self.logger.debug(f"最终plot_params包含的参数: {list(plot_params.keys())}")
+        if 'cumulative' in plot_params:
+            self.logger.debug(f"将传递给ObsPy的cumulative参数: {plot_params['cumulative']}")
         
         # 如果只有一个PPSD，直接绘制
         if len(ppsd_list) == 1:
@@ -1210,11 +1296,6 @@ class PPSDProcessor:
                 ax = plt.gca()
                 ax.grid(args['standard_grid'])
                 self.logger.debug(f"设置网格显示: {args['standard_grid']}")
-            
-            # 如果启用了show_coverage，修改coverage横条的透明度
-            if args.get('show_coverage', True):
-                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
-                self._modify_coverage_transparency(coverage_alpha)
             
             # 如果需要自定义皮特森曲线样式，手动添加
             if show_custom_peterson:
@@ -1246,11 +1327,6 @@ class PPSDProcessor:
                 ax = plt.gca()
                 ax.grid(args['standard_grid'])
                 self.logger.debug(f"设置网格显示: {args['standard_grid']}")
-            
-            # 如果启用了show_coverage，修改coverage横条的透明度
-            if args.get('show_coverage', True):
-                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
-                self._modify_coverage_transparency(coverage_alpha)
             
             # 如果需要自定义皮特森曲线样式，手动添加
             if show_custom_peterson:
@@ -1286,11 +1362,6 @@ class PPSDProcessor:
                 ax = plt.gca()
                 ax.grid(args['standard_grid'])
                 self.logger.debug(f"设置网格显示: {args['standard_grid']}")
-            
-            # 如果启用了show_coverage，修改coverage横条的透明度
-            if args.get('show_coverage', True):
-                coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
-                self._modify_coverage_transparency(coverage_alpha)
             
             # 如果需要自定义皮特森曲线样式，手动添加
             if show_custom_peterson:
@@ -1661,64 +1732,6 @@ class PPSDProcessor:
             self.logger.debug(f"已设置字体大小: {font_size}")
         except Exception as e:
             self.logger.debug(f"设置小字体失败: {e}")
-
-    def _modify_coverage_transparency(self, alpha: float = 0.5):
-        """修改数据覆盖度显示的透明度
-        
-        Parameters:
-            alpha: 透明度值 (0.0-1.0)，默认0.5表示50%透明度
-        """
-        try:
-            # 获取当前figure的所有axes
-            fig = plt.gcf()
-            axes = fig.get_axes()
-            
-            coverage_elements_modified = 0
-            
-            # 遍历所有axes，寻找coverage相关的图形元素
-            for ax in axes:
-                # 查找coverage相关的matplotlib patch对象
-                for patch in ax.patches:
-                    # 直接修改所有patch的透明度（包括Polygon、Rectangle等）
-                    # coverage的patch通常位于图的上方区域
-                    try:
-                        patch.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改patch透明度: {e}")
-                        
-                # 也检查是否有通过collections添加的coverage元素
-                for collection in ax.collections:
-                    try:
-                        # 修改collection的透明度
-                        collection.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改collection透明度: {e}")
-                        
-                # 检查Line2D对象（可能是coverage的线条）
-                for line in ax.get_lines():
-                    # 检查是否是coverage相关的线条（通常y坐标较高）
-                    try:
-                        ydata = line.get_ydata()
-                        if len(ydata) > 0 and hasattr(line, '_original_alpha'):
-                            # 这是我们之前处理过的线条，跳过
-                            continue
-                        # 为coverage线条设置透明度
-                        # 保存原始透明度
-                        line._original_alpha = line.get_alpha() or 1.0
-                        line.set_alpha(alpha)
-                        coverage_elements_modified += 1
-                    except Exception as e:
-                        self.logger.debug(f"无法修改line透明度: {e}")
-            
-            if coverage_elements_modified > 0:
-                self.logger.info(f"成功设置数据覆盖度透明度为 {alpha}，修改了 {coverage_elements_modified} 个元素")
-            else:
-                self.logger.warning("未找到可修改的数据覆盖度元素")
-            
-        except Exception as e:
-            self.logger.warning(f"修改数据覆盖度透明度失败: {e}")
     
     def _add_custom_percentile_lines(self, ppsd: PPSD, percentiles: List[float], args: Dict):
         """添加自定义样式的百分位数线
@@ -2107,7 +2120,7 @@ class PPSDProcessor:
         # 准备绘图参数
         plot_params = {
             'period_lim': args.get('period_lim', [0.01, 1000.0]),
-            'show_coverage': args.get('show_coverage', True)
+            'show_coverage': False  # 禁用 ObsPy 内置的数据覆盖度显示
         }
         
         # 添加配色方案支持
@@ -2201,12 +2214,22 @@ class PPSDProcessor:
         # 添加其他标准图参数（只包含ObsPy支持的参数）
         if 'show_histogram' in args:
             plot_params['show_histogram'] = args['show_histogram']
+        if 'show_mode' in args and not custom_mode_style:
+            plot_params['show_mode'] = args['show_mode']
+        if 'show_mean' in args and not custom_mean_style:
+            plot_params['show_mean'] = args['show_mean']
         if 'xaxis_frequency' in args:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
             plot_params['cumulative'] = args['cumulative_plot']
+            self.logger.debug(f"设置累积模式: cumulative_plot={args['cumulative_plot']}")
         if 'cumulative_number_of_colors' in args:
             plot_params['cumulative_number_of_colors'] = args['cumulative_number_of_colors']
+            self.logger.debug(f"设置累积颜色数量: {args['cumulative_number_of_colors']}")
+        
+        self.logger.debug(f"最终plot_params包含的参数: {list(plot_params.keys())}")
+        if 'cumulative' in plot_params:
+            self.logger.debug(f"将传递给ObsPy的cumulative参数: {plot_params['cumulative']}")
         
         # 使用ObsPy的plot方法
         ppsd.plot(**plot_params)
@@ -2219,11 +2242,6 @@ class PPSDProcessor:
             ax = plt.gca()
             ax.grid(args['standard_grid'])
             self.logger.debug(f"设置网格显示: {args['standard_grid']}")
-        
-        # 如果启用了show_coverage，修改coverage横条的透明度
-        if args.get('show_coverage', True):
-            coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
-            self._modify_coverage_transparency(coverage_alpha)
         
         # 如果需要自定义皮特森曲线样式，手动添加
         if show_custom_peterson:

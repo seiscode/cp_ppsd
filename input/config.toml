@@ -41,16 +41,18 @@ period_step_octaves = 0.125           # 周期步长（1/8倍频程）。
 db_bins = [-200.0, -50.0, 0.25]       # dB分箱：[最小值, 最大值, 步长]。
 
 # --- 数据质量与选择 ---
-skip_on_gaps = false                 # 是否跳过有数据缺失的窗口。
+skip_on_gaps = false                  # 是否跳过有数据缺失的窗口。
                                       # McNamara2004 通过补零合并含间断的trace，这会在PPSD图中产生可识别的异常PSD线。
                                       # 设置为true则不补零，可能导致短于ppsd_length的数据段不被使用。
 
 # Stream.merge()方法参数 - 控制如何合并同一通道的多个trace段
+# skip_on_gaps = false 不被使用，因为skip_on_gaps = false 时，会自动跳过有数据缺失的窗口。
 merge_method = 0                      # 合并方法：0=标准, 1=插值, -1=清理
                                       # 0: 标准合并，重叠部分取平均值
                                       # 1: 使用插值处理重叠
                                       # -1: 仅清理，不处理重叠
 
+# skip_on_gaps = false 或 merge_method 不等于0，不被使用。merge_fill_value 被使用。
 merge_fill_value = "None"             # 间隙填充值，默认None使用masked array
                                       # None: 使用numpy.ma.masked_array保留间隙信息
                                       # 数值: 用指定值填充间隙

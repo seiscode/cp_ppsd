@@ -127,7 +127,10 @@ class ArrayConfigAdapter:
             if plot_type == 'standard':
                 adapted.update({
                     'show_histogram': plot_config.get('show_histogram', True),
-                    'show_coverage': plot_config.get('show_coverage', False),
+                    'show_percentiles': plot_config.get('show_percentiles', False),
+                    'show_noise_models': plot_config.get('show_noise_models', True),
+                    'show_mode': plot_config.get('show_mode', True),
+                    'show_mean': plot_config.get('show_mean', False),
                     'coverage_alpha': plot_config.get('coverage_alpha', 0.5),
                     'period_lim': plot_config.get('period_lim', [0.01, 1000.0]),
                     'standard_cmap': plot_config.get('cmap', 'viridis'),

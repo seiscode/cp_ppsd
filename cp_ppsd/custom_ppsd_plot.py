@@ -29,7 +29,6 @@ import numpy as np
 def plot_ppsd_with_custom_statistical_lines(
         ppsd,
         filename: Optional[str] = None,
-        show_coverage: bool = True,
         show_histogram: bool = True,
         show_percentiles: bool = True,
         percentiles: List[int] = [10, 50, 90],
@@ -68,7 +67,6 @@ def plot_ppsd_with_custom_statistical_lines(
     Parameters:
         ppsd: ObsPy PPSD对象
         filename: 输出文件名
-        show_coverage: 是否显示数据覆盖度
         show_histogram: 是否显示直方图
         show_percentiles: 是否显示百分位数线
         percentiles: 要显示的百分位数列表
@@ -104,7 +102,7 @@ def plot_ppsd_with_custom_statistical_lines(
     # 使用ObsPy的标准绘图方法，但不显示百分位数线、众数线和均值线
     fig = ppsd.plot(
         filename=None,
-        show_coverage=show_coverage,
+        show_coverage=False,  # 禁用 ObsPy 内置的数据覆盖度显示
         show_histogram=show_histogram,
         show_percentiles=False,  # 先不显示百分位数线
         show_noise_models=show_noise_models,
@@ -227,7 +225,7 @@ def plot_ppsd_with_custom_statistical_lines(
     
     # 保存文件
     if filename:
-        fig.savefig(filename, dpi=150, bbox_inches='tight')
+        fig.savefig(filename, dpi=300, bbox_inches='tight')
         logging.info(f"PPSD图已保存: {filename}")
     
     # 显示图形

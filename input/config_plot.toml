@@ -62,13 +62,13 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 # - "standard": 标准PPSD图（2D概率密度直方图）
 # - "temporal": 时间演化图（显示特定周期的PSD值随时间变化）
 # - "spectrogram": 频谱图（显示所有频率的PSD随时间变化）
-plot_type = ["standard", "temporal", "spectrogram"]
+plot_type = [ "standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = "auto"               # 合并策略控制如何处理多个NPZ文件:
-                                          # "auto": 自动按SEED ID分组并使用add_npz()方法合并，
-                                          #         适用于同一台站不同时间段的数据，可显示长期趋势
-                                          # "none": 每个NPZ文件单独绘图，适用于独立分析每个时间段
+npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
+                                          # true: 自动按SEED ID分组并使用add_npz()方法合并，
+                                          #       适用于同一台站不同时间段的数据，可显示长期趋势
+                                          # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
 
 # ========================================
 # 4. 标准图配置
@@ -79,17 +79,13 @@ show_histogram = true                   # 是否绘制2D直方图本身（PPSD�
                                         # true: 显示彩色的概率密度分布
                                         # false: 仅显示统计线条和模型曲线
 
-show_percentiles = false                # 是否显示百分位数线
+show_percentiles = true                # 是否显示百分位数线
                                         # true: 在图上绘制指定百分位数的PSD曲线
                                         # 具体百分位数在 [standard.percentiles] 部分配置
 
 show_noise_models = true                # 是否显示全球噪声模型（皮特森曲线）
                                         # true: 显示NLNM（新低噪声模型）和NHNM（新高噪声模型）
                                         # 这些曲线是地震学中的标准参考模型
-
-show_coverage = false                   # 是否显示数据覆盖度横条
-                                        # true: 在图的顶部显示数据时间覆盖情况
-                                        # 有助于理解PPSD结果的数据基础和可靠性
 
 show_mode = true                        # 是否显示众数PSD曲线
                                         # true: 绘制每个频率点的众数（最常出现的PSD值）
@@ -108,18 +104,14 @@ period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范�
                                         # 如果 xaxis_frequency=true，此处应为频率范围（Hz）
                                         # 建议根据分析目标调整：微震分析用较短周期，长周期噪声分析用较长周期
 
-xaxis_frequency = false                 # PPSD标准图X轴显示模式
+xaxis_frequency = true                # PPSD标准图X轴显示模式
                                         # false: 显示周期（秒），地震学传统表示法
                                         # true: 显示频率（Hz），工程学常用表示法
 
 cumulative_plot = false                 # 是否显示累积直方图模式
                                         # false: 标准概率密度图（推荐）
                                         # true: 累积概率图，显示低于某PSD值的概率分布
-
-coverage_alpha = 0.5                    # 数据覆盖度横条的透明度 (0.0-1.0)
-                                        # 仅在 show_coverage=true 时生效
-                                        # 0.0: 完全透明，1.0: 完全不透明
-                                        # 0.5: 50%透明度，平衡可见性和主图清晰度
+                                        # show_histogram = true 时，cumulative_plot = true 会绘制累积直方图
 
 cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别数量
                                         # 仅在 cumulative_plot=true 时生效
@@ -148,7 +140,7 @@ linewidth = 1.0                         # 百分位数线宽度（磅）
                                         # 1.0: 标准线宽，0.5: 细线，2.0: 粗线
                                         # 根据图像大小和用途调整
 
-linestyle = "--"                        # 百分位数线样式
+linestyle = "-"                        # 百分位数线样式
                                         # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
                                         # 虚线有助于区分统计线和模型曲线
 
@@ -194,17 +186,19 @@ alpha = 0.9                             # 众数线透明度 (0.0-1.0)
 
 # --- 均值线配置 ---
 [standard.mean]
-color = "green"                         # 均值线颜色
+color = "red"                         # 均值线颜色
                                         # 与众数线使用不同颜色以便区分
                                         # 绿色在大多数配色方案中都有良好对比度
 
 linewidth = 1.0                         # 均值线宽度（磅）
                                         # 与其他统计线保持一致
 
-linestyle = "-"                         # 均值线样式
+linestyle = "--"                         # 均值线样式
+                                        # 可用样式："-", "--", "-.", ":"
+                                        # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
                                         # 实线表示其作为统计量的重要性
 
-alpha = 0.9                             # 均值线透明度 (0.0-1.0)
+alpha = 0.6                             # 均值线透明度 (0.0-1.0)
                                         # 高透明度确保均值线清晰可见
 
 # ========================================
@@ -213,7 +207,7 @@ alpha = 0.9                             # 均值线透明度 (0.0-1.0)
 [temporal]
 # 绘制PSD值随时间演化曲线的特定周期（秒）
 # 选择具有代表性的周期点来观察噪声的时间变化
-temporal_plot_periods = [0.1, 1.0, 8.0, 20.0]  # 常用周期：
+temporal_plot_periods = [0.1, 1.0, 10.0]         # 常用周期：（必须用带小数位的浮点数表示）
                                                  # 0.1秒: 高频噪声（如人文噪声）
                                                  # 1.0秒: 地脉动主频段
                                                  # 8.0秒: 地脉动双峰结构

@@ -12,8 +12,7 @@ output_dir = "./output/plots_test/"
 [plotting]
 plot_type = ["standard"]
 npz_merge_strategy = "auto"
-dpi = 150
-figure_size = [12, 8]
+# 图像参数已硬编码：dpi=300, figure_size自动适应
 
 [standard]
 show_histogram = true

@@ -213,7 +213,7 @@ xaxis_frequency = false               # (standard) PPSD标准图X轴是否显示
 cumulative_plot = false               # (standard) 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)。
 show_coverage = true                  # (standard) 是否显示数据覆盖度。
 cumulative_number_of_colors = 20      # (standard) 累积直方图的离散颜色数量。
-max_num_face_colors = 30              # (standard) PPSD标准图中概率面元的最大颜色数量(此为脚本自定义参数，非直接ObsPy参数)
+
 standard_cmap = "viridis"             # (standard) PPSD图的颜色映射方案。例如 "viridis", "plasma", "inferno"。
 
 # --- "spectrogram" (PPSD.plot_spectrogram) 图特定选项 ---

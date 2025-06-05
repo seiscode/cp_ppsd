@@ -416,7 +416,7 @@ xaxis_frequency = true                  # PPSD标准图X轴是否显示频率 (H
 cumulative_plot = false                 # 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)
 coverage_alpha = 0.5                    # 数据覆盖度横条的透明度 (0.0-1.0)，0.5表示50%透明度
 cumulative_number_of_colors = 25        # 累积直方图的离散颜色数量
-max_num_face_colors = 40                # PPSD标准图中概率面元的最大颜色数量(此为脚本自定义参数，非直接ObsPy参数)
+
 standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案。CMRmap反向配色（0-80%范围）- 科学标准，优化PDF显示
 
 # 标准图样式子分组
@@ -1715,7 +1715,7 @@ times = npz_data['times_processed']
 ppsd_length = 1800          # 减少窗口长度 (会影响低频分辨率)
 period_step_octaves = 0.25  # 增加周期步长 (降低频率点密度)
 db_bins = [-180, -80, 0.5]  # 减少dB分箱的范围或增大步长 (降低功率分辨率)
-max_num_face_colors = 20    # (如果使用绘图配置) 减少标准PPSD图的颜色数量
+
 ```
 同时，如果主要目的是计算NPZ，确保不传递绘图配置文件，反之亦然，以避免不必要的操作消耗内存。
 
