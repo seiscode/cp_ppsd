@@ -225,11 +225,11 @@ time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftim
 # 线条样式 (可选)
 temporal_linestyle = "--"              # 所有曲线使用相同样式
                                        # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
-temporal_linewidth = 2.5               # 所有曲线使用相同样式，加粗线条
+temporal_linewidth = 1.0               # 所有曲线使用相同样式，加粗线条
 
 # 线条标记 (可选)
-# temporal_marker = "o"                # 数据点标记样式
-temporal_marker_size = 2.0             # 数据点标记大小
+temporal_marker = "o"                  # 数据点标记样式
+temporal_marker_size = 6.0             # 数据点标记大小（较大的标记更明显）
 
 # ========================================
 # 6. 频谱图配置

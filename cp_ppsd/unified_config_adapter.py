@@ -237,7 +237,8 @@ class UnifiedConfigAdapter:
                 'temporal_color': temporal_config.get('temporal_color', None),
                 'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
                 'temporal_linewidth': temporal_config.get('temporal_linewidth', 1.0),
-                'temporal_marker': temporal_config.get('temporal_marker', None)
+                'temporal_marker': temporal_config.get('temporal_marker', None),
+                'temporal_marker_size': temporal_config.get('temporal_marker_size', 4.0)
             })
         
         # 6. 处理spectrogram配置
@@ -320,7 +321,8 @@ class UnifiedConfigAdapter:
                 'temporal_color': temporal_config.get('temporal_color', None),
                 'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
                 'temporal_linewidth': temporal_config.get('temporal_linewidth', 1.0),
-                'temporal_marker': temporal_config.get('temporal_marker', None)
+                'temporal_marker': temporal_config.get('temporal_marker', None),
+                'temporal_marker_size': temporal_config.get('temporal_marker_size', 4.0)
             })
         
         # 4. 处理spectrogram分组

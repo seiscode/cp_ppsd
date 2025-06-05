@@ -1414,6 +1414,9 @@ class PPSDProcessor:
         if temporal_marker:
             plot_params['marker'] = temporal_marker
         
+        # marker_size参数 - 保存供后续处理使用
+        temporal_marker_size = args.get('temporal_marker_size', 4.0)
+        
         # 对于时间演化图，合并多个PPSD的时间序列数据
         # 这里使用第一个PPSD作为基础
         main_ppsd = ppsd_list[0][1]
@@ -1427,7 +1430,7 @@ class PPSDProcessor:
         if temporal_marker:
             for line in ax.get_lines():
                 if line.get_marker() != 'None':
-                    line.set_markersize(4)  # 设置适中的标记大小
+                    line.set_markersize(temporal_marker_size)  # 使用配置的标记大小
         
         # 调整线条宽度
         if temporal_linewidth and temporal_linewidth != 1.0:
@@ -1526,6 +1529,9 @@ class PPSDProcessor:
         if temporal_marker:
             plot_params['marker'] = temporal_marker
         
+        # marker_size参数 - 保存供后续处理使用
+        temporal_marker_size = args.get('temporal_marker_size', 4.0)
+        
         # 使用ObsPy的plot_temporal方法
         ppsd.plot_temporal(periods, **plot_params)
         
@@ -1536,7 +1542,7 @@ class PPSDProcessor:
         if temporal_marker:
             for line in ax.get_lines():
                 if line.get_marker() != 'None':
-                    line.set_markersize(4)  # 设置适中的标记大小
+                    line.set_markersize(temporal_marker_size)  # 使用配置的标记大小
         
         # 调整线条宽度
         if temporal_linewidth and temporal_linewidth != 1.0:
