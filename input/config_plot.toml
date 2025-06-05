@@ -65,7 +65,7 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 plot_type = [ "standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
+npz_merge_strategy = false                # 合并策略控制如何处理多个NPZ文件:
                                           # true: 自动按SEED ID分组并使用add_npz()方法合并，
                                           #       适用于同一台站不同时间段的数据，可显示长期趋势
                                           # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
