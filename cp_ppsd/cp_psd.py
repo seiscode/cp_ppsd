@@ -1518,7 +1518,6 @@ class PPSDProcessor:
         
         # 在ObsPy绘图完成后手动调整标记大小
         if temporal_marker:
-            import matplotlib.pyplot as plt
             ax = plt.gca()
             for line in ax.get_lines():
                 if line.get_marker() != 'None':
