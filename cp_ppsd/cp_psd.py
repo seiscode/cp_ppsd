@@ -1202,6 +1202,12 @@ class PPSDProcessor:
             main_ppsd = ppsd_list[0][1]
             main_ppsd.plot(**plot_params)
             
+            # 处理网格显示
+            if 'standard_grid' in args:
+                ax = plt.gca()
+                ax.grid(args['standard_grid'])
+                self.logger.debug(f"设置网格显示: {args['standard_grid']}")
+            
             # 如果启用了show_coverage，修改coverage横条的透明度
             if args.get('show_coverage', True):
                 coverage_alpha = args.get('coverage_alpha', 0.5)  # 默认50%透明度
@@ -1229,6 +1235,12 @@ class PPSDProcessor:
         try:
             merged_ppsd = self._merge_ppsd_objects([ppsd[1] for ppsd in ppsd_list])
             merged_ppsd.plot(**plot_params)
+            
+            # 处理网格显示
+            if 'standard_grid' in args:
+                ax = plt.gca()
+                ax.grid(args['standard_grid'])
+                self.logger.debug(f"设置网格显示: {args['standard_grid']}")
             
             # 如果启用了show_coverage，修改coverage横条的透明度
             if args.get('show_coverage', True):
@@ -1260,6 +1272,12 @@ class PPSDProcessor:
             # 回退到使用第一个PPSD
             main_ppsd = ppsd_list[0][1]
             main_ppsd.plot(**plot_params)
+            
+            # 处理网格显示
+            if 'standard_grid' in args:
+                ax = plt.gca()
+                ax.grid(args['standard_grid'])
+                self.logger.debug(f"设置网格显示: {args['standard_grid']}")
             
             # 如果启用了show_coverage，修改coverage横条的透明度
             if args.get('show_coverage', True):
@@ -2123,6 +2141,12 @@ class PPSDProcessor:
         
         # 使用ObsPy的plot方法
         ppsd.plot(**plot_params)
+        
+        # 处理网格显示
+        if 'standard_grid' in args:
+            ax = plt.gca()
+            ax.grid(args['standard_grid'])
+            self.logger.debug(f"设置网格显示: {args['standard_grid']}")
         
         # 如果启用了show_coverage，修改coverage横条的透明度
         if args.get('show_coverage', True):
