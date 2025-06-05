@@ -222,9 +222,9 @@ time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftim
 
 
 # 线条颜色 (可选，为多个周期的列表或单一颜色)
-temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色
+# temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色
 # 线条样式 (可选)
-temporal_linestyle = "-"              # 所有曲线使用相同样式
+temporal_linestyle = "--"              # 所有曲线使用相同样式
 # 线条标记 (可选)
 temporal_marker = "o"                 # 数据点标记样式
 

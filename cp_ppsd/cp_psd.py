@@ -1416,6 +1416,14 @@ class PPSDProcessor:
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_temporal(periods, **plot_params)
         
+        # 在ObsPy绘图完成后手动调整标记大小
+        if temporal_marker:
+            import matplotlib.pyplot as plt
+            ax = plt.gca()
+            for line in ax.get_lines():
+                if line.get_marker() != 'None':
+                    line.set_markersize(4)  # 设置适中的标记大小
+        
         # 设置小字体
         self._set_font_size()
         
@@ -1507,6 +1515,14 @@ class PPSDProcessor:
         
         # 使用ObsPy的plot_temporal方法
         ppsd.plot_temporal(periods, **plot_params)
+        
+        # 在ObsPy绘图完成后手动调整标记大小
+        if temporal_marker:
+            import matplotlib.pyplot as plt
+            ax = plt.gca()
+            for line in ax.get_lines():
+                if line.get_marker() != 'None':
+                    line.set_markersize(4)  # 设置适中的标记大小
         
         # 设置小字体
         self._set_font_size()
