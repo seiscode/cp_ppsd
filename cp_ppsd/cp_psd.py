@@ -1196,6 +1196,8 @@ class PPSDProcessor:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
             plot_params['cumulative'] = args['cumulative_plot']
+        if 'cumulative_number_of_colors' in args:
+            plot_params['cumulative_number_of_colors'] = args['cumulative_number_of_colors']
         
         # 如果只有一个PPSD，直接绘制
         if len(ppsd_list) == 1:
@@ -2138,6 +2140,8 @@ class PPSDProcessor:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
             plot_params['cumulative'] = args['cumulative_plot']
+        if 'cumulative_number_of_colors' in args:
+            plot_params['cumulative_number_of_colors'] = args['cumulative_number_of_colors']
         
         # 使用ObsPy的plot方法
         ppsd.plot(**plot_params)

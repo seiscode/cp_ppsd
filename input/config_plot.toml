@@ -69,7 +69,7 @@ show_mode = true                        # 是否显示众数PSD曲线
 show_mean = false                        # 是否显示均值PSD曲线
 
 # --- 绘图样式控制 ---
-standard_grid = false                    # 是否在直方图上显示网格
+standard_grid = true                    # 是否在直方图上显示网格
 period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范围（秒）。若 xaxis_frequency=true, 此处应为频率 (Hz)
 xaxis_frequency = false                  # PPSD标准图X轴true按频率 (Hz) false按周期 (秒)
 cumulative_plot = false                 # 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)
