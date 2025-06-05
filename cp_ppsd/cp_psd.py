@@ -1652,6 +1652,9 @@ class PPSDProcessor:
             linestyle = args.get('percentile_linestyle', '--')
             alpha = args.get('percentile_alpha', 0.8)
             
+            # 检查是否需要显示频率而非周期
+            xaxis_frequency = args.get('xaxis_frequency', False)
+            
             # 计算百分位数
             try:
                 # 获取当前坐标轴
@@ -1663,8 +1666,14 @@ class PPSDProcessor:
                         # ObsPy的get_percentile返回(periods, psd_values)元组
                         periods, psd_values = ppsd.get_percentile(percentile)
                         
+                        # 如果需要显示频率，转换周期为频率
+                        if xaxis_frequency:
+                            x_values = 1.0 / periods  # frequency = 1 / period
+                        else:
+                            x_values = periods
+                        
                         # 绘制百分位数线
-                        ax.plot(periods, psd_values, 
+                        ax.plot(x_values, psd_values, 
                                color=color, linewidth=linewidth, 
                                linestyle=linestyle, alpha=alpha,
                                label=f'{percentile}th percentile')
@@ -1697,6 +1706,9 @@ class PPSDProcessor:
             linestyle = args.get('peterson_linestyle', '--')
             alpha = args.get('peterson_alpha', 0.8)
             
+            # 检查是否需要显示频率而非周期
+            xaxis_frequency = args.get('xaxis_frequency', False)
+            
             # 导入ObsPy的噪声模型
             try:
                 from obspy.signal.spectral_estimation import get_nlnm, get_nhnm
@@ -1705,17 +1717,25 @@ class PPSDProcessor:
                 nlnm_periods, nlnm_psd = get_nlnm()
                 nhnm_periods, nhnm_psd = get_nhnm()
                 
+                # 如果需要显示频率，转换周期为频率
+                if xaxis_frequency:
+                    nlnm_x = 1.0 / nlnm_periods  # frequency = 1 / period
+                    nhnm_x = 1.0 / nhnm_periods
+                else:
+                    nlnm_x = nlnm_periods
+                    nhnm_x = nhnm_periods
+                
                 # 获取当前坐标轴
                 ax = plt.gca()
                 
                 # 绘制NLNM曲线
-                ax.plot(nlnm_periods, nlnm_psd, 
+                ax.plot(nlnm_x, nlnm_psd, 
                        color=nlnm_color, linewidth=linewidth,
                        linestyle=linestyle, alpha=alpha,
                        label='NLNM')
                 
                 # 绘制NHNM曲线
-                ax.plot(nhnm_periods, nhnm_psd,
+                ax.plot(nhnm_x, nhnm_psd,
                        color=nhnm_color, linewidth=linewidth,
                        linestyle=linestyle, alpha=alpha,
                        label='NHNM')
@@ -1790,11 +1810,18 @@ class PPSDProcessor:
                         else:
                             mode_psd = mode_psd.flatten()
                     
+                    # 检查是否需要显示频率而非周期
+                    xaxis_frequency = args.get('xaxis_frequency', False)
+                    if xaxis_frequency:
+                        x_values = 1.0 / periods  # frequency = 1 / period
+                    else:
+                        x_values = periods
+                    
                     # 获取当前坐标轴
                     ax = plt.gca()
                     
                     # 绘制众数线
-                    ax.plot(periods, mode_psd,
+                    ax.plot(x_values, mode_psd,
                            color=color, linewidth=linewidth,
                            linestyle=linestyle, alpha=alpha,
                            label='Mode')
@@ -1861,11 +1888,18 @@ class PPSDProcessor:
                         else:
                             mean_psd = mean_psd.flatten()
                     
+                    # 检查是否需要显示频率而非周期
+                    xaxis_frequency = args.get('xaxis_frequency', False)
+                    if xaxis_frequency:
+                        x_values = 1.0 / periods  # frequency = 1 / period
+                    else:
+                        x_values = periods
+                    
                     # 获取当前坐标轴
                     ax = plt.gca()
                     
                     # 绘制均值线
-                    ax.plot(periods, mean_psd,
+                    ax.plot(x_values, mean_psd,
                            color=color, linewidth=linewidth,
                            linestyle=linestyle, alpha=alpha,
                            label='Mean')
