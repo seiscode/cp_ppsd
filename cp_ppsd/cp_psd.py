@@ -1406,6 +1406,9 @@ class PPSDProcessor:
         if temporal_linestyle:
             plot_params['linestyle'] = temporal_linestyle
         
+        # linewidth参数 - 保存供后续处理使用（ObsPy可能不原生支持）
+        temporal_linewidth = args.get('temporal_linewidth', 1.0)
+        
         # marker参数 - ObsPy原生支持
         temporal_marker = args.get('temporal_marker', None)
         if temporal_marker:
@@ -1416,13 +1419,20 @@ class PPSDProcessor:
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_temporal(periods, **plot_params)
         
-        # 在ObsPy绘图完成后手动调整标记大小
+        # 在ObsPy绘图完成后手动调整线条属性
+        import matplotlib.pyplot as plt
+        ax = plt.gca()
+        
+        # 调整标记大小
         if temporal_marker:
-            import matplotlib.pyplot as plt
-            ax = plt.gca()
             for line in ax.get_lines():
                 if line.get_marker() != 'None':
                     line.set_markersize(4)  # 设置适中的标记大小
+        
+        # 调整线条宽度
+        if temporal_linewidth and temporal_linewidth != 1.0:
+            for line in ax.get_lines():
+                line.set_linewidth(temporal_linewidth)
         
         # 设置小字体
         self._set_font_size()
@@ -1508,6 +1518,9 @@ class PPSDProcessor:
         if temporal_linestyle:
             plot_params['linestyle'] = temporal_linestyle
         
+        # linewidth参数 - 保存供后续处理使用（ObsPy可能不原生支持）
+        temporal_linewidth = args.get('temporal_linewidth', 1.0)
+        
         # marker参数 - ObsPy原生支持
         temporal_marker = args.get('temporal_marker', None)
         if temporal_marker:
@@ -1516,12 +1529,19 @@ class PPSDProcessor:
         # 使用ObsPy的plot_temporal方法
         ppsd.plot_temporal(periods, **plot_params)
         
-        # 在ObsPy绘图完成后手动调整标记大小
+        # 在ObsPy绘图完成后手动调整线条属性
+        ax = plt.gca()
+        
+        # 调整标记大小
         if temporal_marker:
-            ax = plt.gca()
             for line in ax.get_lines():
                 if line.get_marker() != 'None':
                     line.set_markersize(4)  # 设置适中的标记大小
+        
+        # 调整线条宽度
+        if temporal_linewidth and temporal_linewidth != 1.0:
+            for line in ax.get_lines():
+                line.set_linewidth(temporal_linewidth)
         
         # 设置小字体
         self._set_font_size()

@@ -65,7 +65,7 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 plot_type = [ "standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = false                # 合并策略控制如何处理多个NPZ文件:
+npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
                                           # true: 自动按SEED ID分组并使用add_npz()方法合并，
                                           #       适用于同一台站不同时间段的数据，可显示长期趋势
                                           # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
@@ -140,7 +140,7 @@ linewidth = 1.0                         # 百分位数线宽度（磅）
                                         # 1.0: 标准线宽，0.5: 细线，2.0: 粗线
                                         # 根据图像大小和用途调整
 
-linestyle = "-"                        # 百分位数线样式
+linestyle = "-"                         # 百分位数线样式
                                         # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
                                         # 虚线有助于区分统计线和模型曲线
 
@@ -162,7 +162,7 @@ linewidth = 1.0                         # 皮特森曲线线宽（磅）
                                         # 建议与百分位数线保持一致的线宽
 
 linestyle = "--"                        # 皮特森曲线线型
-                                        # 可用样式："-", "--", "-.", ":"
+                                        # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
                                         # 虚线有助于区分模型曲线和实际数据
 
 alpha = 1.0                             # 皮特森曲线透明度 (0.0-1.0)
@@ -186,15 +186,14 @@ alpha = 0.9                             # 众数线透明度 (0.0-1.0)
 
 # --- 均值线配置 ---
 [standard.mean]
-color = "red"                         # 均值线颜色
+color = "red"                           # 均值线颜色
                                         # 与众数线使用不同颜色以便区分
                                         # 绿色在大多数配色方案中都有良好对比度
 
 linewidth = 1.0                         # 均值线宽度（磅）
                                         # 与其他统计线保持一致
 
-linestyle = "--"                         # 均值线样式
-                                        # 可用样式："-", "--", "-.", ":"
+linestyle = "--"                        # 均值线样式
                                         # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
                                         # 实线表示其作为统计量的重要性
 
@@ -225,15 +224,19 @@ time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftim
 # temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色
 # 线条样式 (可选)
 temporal_linestyle = "--"              # 所有曲线使用相同样式
+                                       # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
+temporal_linewidth = 2.5               # 所有曲线使用相同样式，加粗线条
+
 # 线条标记 (可选)
-temporal_marker = "o"                 # 数据点标记样式
+# temporal_marker = "o"                # 数据点标记样式
+temporal_marker_size = 2.0             # 数据点标记大小
 
 # ========================================
 # 6. 频谱图配置
 # ========================================
 [spectrogram]
 # 颜色图的振幅限制 [min_db, max_db]
-clim = [-180, -100]                     # PSD显示范围（dB）
+clim = [-200, -50]                     # PSD显示范围（dB）
                                         # [-180, -100]: 适合大多数地震台站
                                         # 根据台站噪声水平调整范围以优化对比度
 

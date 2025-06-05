@@ -236,6 +236,7 @@ class UnifiedConfigAdapter:
                 'temporal_cmap': temporal_config.get('temporal_cmap', 'Blues'),
                 'temporal_color': temporal_config.get('temporal_color', None),
                 'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
+                'temporal_linewidth': temporal_config.get('temporal_linewidth', 1.0),
                 'temporal_marker': temporal_config.get('temporal_marker', None)
             })
         
@@ -318,6 +319,7 @@ class UnifiedConfigAdapter:
                 'temporal_cmap': temporal_config.get('temporal_cmap', 'viridis'),
                 'temporal_color': temporal_config.get('temporal_color', None),
                 'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
+                'temporal_linewidth': temporal_config.get('temporal_linewidth', 1.0),
                 'temporal_marker': temporal_config.get('temporal_marker', None)
             })
         
