@@ -219,13 +219,7 @@ time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftim
                                         # "%H:%M": 时:分 (14:30)
                                         # "%Y%m%d %H:%M": 年月日 时:分 (20230115 14:30)
 
-# 是否在图上显示网格
-temporal_grid = true                    # true: 显示网格，便于读取时间和PSD值
-                                        # false: 不显示网格，图像更简洁
 
-# 是否显示图例
-temporal_legend = true                  # true: 显示图例，标识不同周期的曲线
-                                        # false: 不显示图例，节省空间
 
 # 线条颜色 (可选，为多个周期的列表或单一颜色)
 # temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色

@@ -80,8 +80,7 @@ class SimpleConfigAdapter:
                     adapted['temporal_plot_periods'] = value
                 elif key == 'time_format_x':
                     adapted['time_format_x_temporal'] = value
-                elif key == 'grid':
-                    adapted['temporal_grid'] = value
+
                 elif key == 'cmap':
                     adapted['temporal_cmap'] = value
                 else:
@@ -132,7 +131,6 @@ class SimpleConfigAdapter:
         print("├── [temporal] 时间演化图配置")
         print("│   ├── plot_periods -> temporal_plot_periods")
         print("│   ├── time_format_x -> time_format_x_temporal")
-        print("│   ├── grid -> temporal_grid")
         print("│   └── cmap -> temporal_cmap")
         print("│")
         print("└── [spectrogram] 频谱图配置")

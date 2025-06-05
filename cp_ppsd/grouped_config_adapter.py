@@ -200,7 +200,6 @@ class GroupedConfigAdapter:
             plotting_args.update({
                 'temporal_plot_periods': temporal_config.get('plot_periods', [1.0, 8.0, 20.0]),
                 'time_format_x_temporal': temporal_config.get('time_format_x', '%H:%M'),
-                'temporal_grid': temporal_config.get('grid', True),
                 'temporal_cmap': temporal_config.get('cmap', 'Blues')
             })
         

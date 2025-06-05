@@ -1391,7 +1391,6 @@ class PPSDProcessor:
         # 获取temporal配置参数
         periods = args.get('temporal_plot_periods', [1.0, 8.0, 20.0])
         time_format = args.get('time_format_x_temporal', '%H:%M')
-        show_grid = args.get('temporal_grid', True)
         cmap = args.get('temporal_cmap', 'Blues')
         
         # 对于时间演化图，合并多个PPSD的时间序列数据
@@ -1402,9 +1401,7 @@ class PPSDProcessor:
         # 设置小字体
         self._set_font_size()
         
-        # 应用网格设置
-        if show_grid:
-            plt.grid(True, alpha=0.3)
+
         
         # 尝试手动设置配色方案
         try:
@@ -1470,9 +1467,7 @@ class PPSDProcessor:
         # 构建ObsPy plot_temporal支持的参数
         plot_params = {}
         
-        # grid参数 - ObsPy原生支持
-        if 'temporal_grid' in args:
-            plot_params['grid'] = args['temporal_grid']
+
         
         # color参数 - ObsPy原生支持
         # 注意：对于多个周期，color应该是颜色列表或None
@@ -1480,8 +1475,7 @@ class PPSDProcessor:
         if temporal_color:
             plot_params['color'] = temporal_color
         
-        # legend参数 - ObsPy原生支持
-        plot_params['legend'] = args.get('temporal_legend', True)
+
         
         # linestyle参数 - ObsPy原生支持
         temporal_linestyle = args.get('temporal_linestyle', '-')
