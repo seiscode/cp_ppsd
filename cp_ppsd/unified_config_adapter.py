@@ -233,7 +233,10 @@ class UnifiedConfigAdapter:
             plotting_args.update({
                 'temporal_plot_periods': temporal_config.get('plot_periods', [1.0, 8.0, 20.0]),
                 'time_format_x_temporal': temporal_config.get('time_format_x', '%H:%M'),
-                'temporal_cmap': temporal_config.get('cmap', 'Blues')
+                'temporal_cmap': temporal_config.get('cmap', 'Blues'),
+                'temporal_color': temporal_config.get('temporal_color', None),
+                'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
+                'temporal_marker': temporal_config.get('temporal_marker', None)
             })
         
         # 6. 处理spectrogram配置
@@ -312,7 +315,10 @@ class UnifiedConfigAdapter:
             plotting_args.update({
                 'temporal_plot_periods': temporal_config.get('plot_periods', [1.0, 8.0, 20.0]),
                 'time_format_x_temporal': temporal_config.get('time_format_x', '%H:%M'),
-                'temporal_cmap': temporal_config.get('cmap', 'viridis')
+                'temporal_cmap': temporal_config.get('cmap', 'viridis'),
+                'temporal_color': temporal_config.get('temporal_color', None),
+                'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
+                'temporal_marker': temporal_config.get('temporal_marker', None)
             })
         
         # 4. 处理spectrogram分组

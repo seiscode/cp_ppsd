@@ -1393,10 +1393,28 @@ class PPSDProcessor:
         time_format = args.get('time_format_x_temporal', '%H:%M')
         cmap = args.get('temporal_cmap', 'Blues')
         
+        # 构建ObsPy plot_temporal支持的参数
+        plot_params = {}
+        
+        # color参数 - ObsPy原生支持
+        temporal_color = args.get('temporal_color', None)
+        if temporal_color:
+            plot_params['color'] = temporal_color
+        
+        # linestyle参数 - ObsPy原生支持
+        temporal_linestyle = args.get('temporal_linestyle', '-')
+        if temporal_linestyle:
+            plot_params['linestyle'] = temporal_linestyle
+        
+        # marker参数 - ObsPy原生支持
+        temporal_marker = args.get('temporal_marker', None)
+        if temporal_marker:
+            plot_params['marker'] = temporal_marker
+        
         # 对于时间演化图，合并多个PPSD的时间序列数据
         # 这里使用第一个PPSD作为基础
         main_ppsd = ppsd_list[0][1]
-        main_ppsd.plot_temporal(periods)
+        main_ppsd.plot_temporal(periods, **plot_params)
         
         # 设置小字体
         self._set_font_size()
