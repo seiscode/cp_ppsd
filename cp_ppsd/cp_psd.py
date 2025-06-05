@@ -110,6 +110,9 @@ class PPSDProcessor:
         # 注册自定义配色方案
         self._register_custom_colormaps()
         
+        # 设置全局字体大小（减小2号）
+        plt.rcParams['font.size'] = 10
+        
     def _load_configs(self):
         """加载所有配置文件（支持统一配置适配器）"""
         for config_file in self.config_files:
@@ -622,6 +625,9 @@ class PPSDProcessor:
         """执行PPSD绘图 - 正确使用ObsPy的add_npz()方法合并文件"""
         self.logger.info("开始PPSD绘图")
         
+        # 设置当前配置的字体大小
+        self._current_font_size = config.get('font_size', 8)
+        
         # 获取参数
         input_npz_dir = config.get('input_npz_dir')
         output_dir = config.get('output_dir', './ppsd_results/plots')
@@ -917,42 +923,35 @@ class PPSDProcessor:
         
         filepath = os.path.join(output_dir, filename)
         
-        # 创建图像
-        fig = plt.figure(figsize=(12, 8))
+        # 绘制图像
+        if plot_type == 'standard':
+            self._plot_standard(ppsd, args)
+            # 修改标题以显示时间范围信息
+            new_title = f"{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
+            plt.title(new_title, fontsize=self._current_font_size + 1)
+        elif plot_type == 'temporal':
+            self._plot_temporal(ppsd, args)
+            # 修改标题以显示时间范围信息
+            temporal_title = (f"{seed_id}\n"
+                            f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                            f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            plt.title(temporal_title, fontsize=self._current_font_size + 1)
+        elif plot_type == 'spectrogram':
+            self._plot_spectrogram(ppsd, args)
+            # 修改标题以显示时间范围信息
+            spectrogram_title = (f"{seed_id}\n"
+                               f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
+                               f"{end_time.strftime('%Y-%m-%d %H:%M')}")
+            plt.title(spectrogram_title, fontsize=self._current_font_size + 1)
+        else:
+            raise ValueError(f"不支持的绘图类型: {plot_type}")
         
-        try:
-            if plot_type == 'standard':
-                self._plot_standard(ppsd, args)
-                # 修改标题以显示时间范围信息
-                new_title = f"{seed_id}\n{start_time.strftime('%Y-%m-%d %H:%M')} - {end_time.strftime('%Y-%m-%d %H:%M')}"
-                plt.title(new_title)
-            elif plot_type == 'temporal':
-                self._plot_temporal(ppsd, args)
-                # 修改标题以显示时间范围信息
-                temporal_title = (f"{seed_id}\n"
-                                f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
-                                f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-                plt.title(temporal_title)
-            elif plot_type == 'spectrogram':
-                self._plot_spectrogram(ppsd, args)
-                # 修改标题以显示时间范围信息
-                spectrogram_title = (f"{seed_id}\n"
-                                   f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
-                                   f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-                plt.title(spectrogram_title)
-            else:
-                raise ValueError(f"不支持的绘图类型: {plot_type}")
-            
-            # 保存图像
-            plt.tight_layout()
-            plt.savefig(filepath, dpi=150, bbox_inches='tight')
-            plt.close(fig)
-            
-            self.logger.info(f"保存合并图像: {filename}")
-            
-        except Exception as e:
-            plt.close(fig)  # 确保图像被关闭
-            raise
+        # 保存图像（保持硬编码的dpi=150）
+        plt.tight_layout()
+        plt.savefig(filepath, dpi=150, bbox_inches='tight')
+        plt.close()
+        
+        self.logger.info(f"保存合并图像: {filename}")
     
     def _plot_merged_ppsd(self, ppsd_objects: Dict, plot_types: List[str], args: Dict, output_dir: str, config: Dict):
         """合并绘图：将相同SEED ID的PPSD对象合并到一张图中"""
@@ -1025,9 +1024,7 @@ class PPSDProcessor:
         
         filepath = os.path.join(output_dir, filename)
         
-        # 创建图像
-        fig = plt.figure(figsize=(12, 8))
-        
+        # 绘制图像
         if plot_type == 'standard':
             self._plot_merged_standard(ppsd_list, args)
         elif plot_type == 'temporal':
@@ -1037,10 +1034,10 @@ class PPSDProcessor:
         else:
             raise ValueError(f"不支持的绘图类型: {plot_type}")
         
-        # 保存图像
+        # 保存图像（保持硬编码的dpi=150）
         plt.tight_layout()
         plt.savefig(filepath, dpi=150, bbox_inches='tight')
-        plt.close(fig)
+        plt.close()
         
         self.logger.info(f"保存合并图像: {filepath}")
     
@@ -1188,6 +1185,8 @@ class PPSDProcessor:
         
         # 添加其他标准图参数（只包含ObsPy支持的参数）
         # 注意：如果已经设置了自定义样式，就不要覆盖这些设置
+        if 'show_histogram' in args:
+            plot_params['show_histogram'] = args['show_histogram']
         if 'show_mode' in args and not custom_mode_style:
             plot_params['show_mode'] = args['show_mode']
         if 'show_mean' in args and not custom_mean_style:
@@ -1203,6 +1202,8 @@ class PPSDProcessor:
         if len(ppsd_list) == 1:
             main_ppsd = ppsd_list[0][1]
             main_ppsd.plot(**plot_params)
+            # 设置小字体
+            self._set_font_size()
             
             # 处理网格显示
             if 'standard_grid' in args:
@@ -1237,6 +1238,8 @@ class PPSDProcessor:
         try:
             merged_ppsd = self._merge_ppsd_objects([ppsd[1] for ppsd in ppsd_list])
             merged_ppsd.plot(**plot_params)
+            # 设置小字体
+            self._set_font_size()
             
             # 处理网格显示
             if 'standard_grid' in args:
@@ -1267,13 +1270,16 @@ class PPSDProcessor:
             
             # 设置标题
             plt.title(f"{merged_ppsd.network}.{merged_ppsd.station}."
-                     f"{merged_ppsd.location}.{merged_ppsd.channel}")
+                     f"{merged_ppsd.location}.{merged_ppsd.channel}", 
+                     fontsize=self._current_font_size + 1)
                      
         except Exception as e:
             self.logger.warning(f"PPSD合并失败，使用第一个PPSD: {e}")
             # 回退到使用第一个PPSD
             main_ppsd = ppsd_list[0][1]
             main_ppsd.plot(**plot_params)
+            # 设置小字体
+            self._set_font_size()
             
             # 处理网格显示
             if 'standard_grid' in args:
@@ -1303,7 +1309,8 @@ class PPSDProcessor:
                 self._add_custom_mean_line(main_ppsd, args)
                 
             plt.title(f"{main_ppsd.network}.{main_ppsd.station}."
-                     f"{main_ppsd.location}.{main_ppsd.channel}")
+                     f"{main_ppsd.location}.{main_ppsd.channel}", 
+                     fontsize=self._current_font_size + 1)
     
     def _plot_merged_temporal(self, ppsd_list: List, args: Dict):
         """绘制合并的时间演化图"""
@@ -1320,6 +1327,9 @@ class PPSDProcessor:
         # 这里使用第一个PPSD作为基础
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_temporal(periods)
+        
+        # 设置小字体
+        self._set_font_size()
         
         # 应用网格设置
         if show_grid:
@@ -1415,6 +1425,9 @@ class PPSDProcessor:
         # 使用ObsPy的plot_temporal方法
         ppsd.plot_temporal(periods, **plot_params)
         
+        # 设置小字体
+        self._set_font_size()
+        
         # 添加包含时间范围的标题
         if hasattr(ppsd, 'times_processed') and len(ppsd.times_processed) > 0:
             start_time = min(ppsd.times_processed)
@@ -1425,7 +1438,7 @@ class PPSDProcessor:
             title = (f"{seed_id}\n"
                     f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
                     f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-            plt.title(title)
+            plt.title(title, fontsize=self._current_font_size + 1)
         
         # 手动应用时间格式 (ObsPy不直接支持)
         time_format = args.get('time_format_x_temporal', '%H:%M')
@@ -1481,6 +1494,9 @@ class PPSDProcessor:
         # 使用ObsPy的plot_spectrogram方法
         ppsd.plot_spectrogram(**plot_params)
         
+        # 设置小字体
+        self._set_font_size()
+        
         # 立即在ObsPy绘图完成后应用时间格式 - 修正：应用到X轴而不是Y轴
         time_format = args.get('time_format_x_spectrogram', '%Y-%m-%d')
         try:
@@ -1513,7 +1529,7 @@ class PPSDProcessor:
             title = (f"{seed_id}\n"
                     f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
                     f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-            plt.title(title)
+            plt.title(title, fontsize=self._current_font_size + 1)
     
     def _plot_merged_spectrogram(self, ppsd_list: List, args: Dict):
         """绘制合并的频谱图"""
@@ -1551,6 +1567,9 @@ class PPSDProcessor:
         # 对于频谱图，使用第一个PPSD
         main_ppsd = ppsd_list[0][1]
         main_ppsd.plot_spectrogram(**plot_params)
+        
+        # 设置小字体
+        self._set_font_size()
         
         # 立即在ObsPy绘图完成后应用时间格式 - 修正：应用到X轴
         self.logger.debug(f"merged spectrogram时间格式设置: {time_format}")
@@ -1597,8 +1616,52 @@ class PPSDProcessor:
         else:
             title = f"{seed_id}"
         
-        plt.title(title)
+        plt.title(title, fontsize=self._current_font_size + 1)
     
+    def _set_font_size(self):
+        """强制设置图中所有文字元素为配置的字体大小"""
+        try:
+            # 获取字体大小配置，默认为8
+            font_size = getattr(self, '_current_font_size', 8)
+            
+            # 获取当前的axes
+            ax = plt.gca()
+            
+            # 设置坐标轴标签字体
+            ax.xaxis.label.set_fontsize(font_size)
+            ax.yaxis.label.set_fontsize(font_size)
+            
+            # 设置坐标轴刻度标签字体
+            ax.tick_params(axis='both', which='major', labelsize=font_size)
+            ax.tick_params(axis='both', which='minor', labelsize=font_size-1)
+            
+            # 设置标题字体
+            title = ax.get_title()
+            if title:
+                ax.set_title(title, fontsize=font_size + 1)
+            
+            # 设置图例字体
+            legend = ax.get_legend()
+            if legend:
+                for text in legend.get_texts():
+                    text.set_fontsize(font_size)
+            
+            # 设置colorbar字体（如果存在）
+            fig = plt.gcf()
+            for ax_item in fig.get_axes():
+                # 检查是否是colorbar的axes
+                if hasattr(ax_item, 'yaxis') and ax_item != ax:
+                    try:
+                        ax_item.tick_params(axis='both', which='major', labelsize=font_size)
+                        if ax_item.get_ylabel():
+                            ax_item.yaxis.label.set_fontsize(font_size)
+                    except:
+                        pass
+            
+            self.logger.debug(f"已设置字体大小: {font_size}")
+        except Exception as e:
+            self.logger.debug(f"设置小字体失败: {e}")
+
     def _modify_coverage_transparency(self, alpha: float = 0.5):
         """修改数据覆盖度显示的透明度
         
@@ -2136,6 +2199,8 @@ class PPSDProcessor:
             show_custom_percentiles = False
         
         # 添加其他标准图参数（只包含ObsPy支持的参数）
+        if 'show_histogram' in args:
+            plot_params['show_histogram'] = args['show_histogram']
         if 'xaxis_frequency' in args:
             plot_params['xaxis_frequency'] = args['xaxis_frequency']
         if 'cumulative_plot' in args:
@@ -2145,6 +2210,9 @@ class PPSDProcessor:
         
         # 使用ObsPy的plot方法
         ppsd.plot(**plot_params)
+        
+        # ObsPy绘图完成后，强制设置所有文字元素的字体大小
+        self._set_font_size()
         
         # 处理网格显示
         if 'standard_grid' in args:
@@ -2186,7 +2254,7 @@ class PPSDProcessor:
             title = (f"{seed_id}\n"
                     f"{start_time.strftime('%Y-%m-%d %H:%M')} - "
                     f"{end_time.strftime('%Y-%m-%d %H:%M')}")
-            plt.title(title)
+            plt.title(title, fontsize=self._current_font_size + 1)
 
 
 def main():

@@ -80,8 +80,7 @@ class GroupedConfigAdapter:
             adapted.update({
                 'plot_types': plotting_config.get('plot_types', ['standard']),
                 'npz_merge_strategy': plotting_config.get('npz_merge_strategy', True),
-                'dpi': plotting_config.get('dpi', 150),
-                'figure_size': plotting_config.get('figure_size', [12, 8])
+                            # dpi 和 figure_size 已硬编码，不再从配置读取
             })
             
             # 将绘图类型和合并策略也加入args中（程序期望从args获取）
@@ -104,7 +103,6 @@ class GroupedConfigAdapter:
                 'xaxis_frequency': standard_config.get('xaxis_frequency', False),
                 'cumulative_plot': standard_config.get('cumulative_plot', False),
                 'cumulative_number_of_colors': standard_config.get('cumulative_number_of_colors', 25),
-                'max_num_face_colors': standard_config.get('max_num_face_colors', 40),
                 'standard_cmap': standard_config.get('standard_cmap', 'viridis')
             })
             
@@ -184,8 +182,8 @@ class GroupedConfigAdapter:
             plotting_args.update({
                 'clim': spectrogram_config.get('clim', [-180, -100]),
                 'time_format_x_spectrogram': spectrogram_config.get('time_format_x', '%Y-%m-%d'),
-                'spectrogram_grid': spectrogram_config.get('grid', True),
-                'spectrogram_cmap': spectrogram_config.get('cmap', 'viridis')
+                'spectrogram_grid': spectrogram_config.get('spectrogram_grid', True),
+                'spectrogram_cmap': spectrogram_config.get('spectrogram_cmap', 'viridis')
             })
         
         # 8. 处理advanced配置
@@ -193,8 +191,9 @@ class GroupedConfigAdapter:
             advanced_config = self.raw_config['advanced']
             plotting_args.update({
                 'matplotlib_backend': advanced_config.get('matplotlib_backend', 'Agg'),
-                'font_family': advanced_config.get('font_family', 'WenQuanYi Micro Hei'),
-                'enable_chinese_fonts': advanced_config.get('enable_chinese_fonts', True),
+                            'font_family': advanced_config.get('font_family', 'WenQuanYi Micro Hei'),
+            'enable_chinese_fonts': advanced_config.get('enable_chinese_fonts', True),
+            'font_size': advanced_config.get('font_size', 8),
                 'memory_optimization': advanced_config.get('memory_optimization', True),
                 'parallel_processing': advanced_config.get('parallel_processing', False)
             })

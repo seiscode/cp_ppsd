@@ -8,9 +8,15 @@
 # 1. 全局设置
 # ========================================
 [global]
-log_level = "DEBUG"                          # 日志级别："DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
-description = "PPSD绘图配置文件 - 分组结构版本"  # 配置文件描述信息
-version = "2.0"                              # 配置文件版本号
+log_level = "DEBUG"                         # 日志级别："DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"
+                                            # DEBUG: 最详细的日志信息，包含所有调试信息
+                                            # INFO: 一般信息，如进度提示和主要步骤
+                                            # WARNING: 警告信息，表示潜在问题但不影响执行
+                                            # ERROR: 错误信息，表示某些操作失败
+                                            # CRITICAL: 严重错误，可能导致程序无法继续
+
+description = "PPSD绘图配置文件 - 分组结构版本"  # 配置文件描述信息，用于文档化和版本管理
+version = "2.0"                              # 配置文件版本号，便于配置文件的版本控制和兼容性检查
 
 # ========================================
 # 2. 输入输出配置
@@ -20,8 +26,16 @@ version = "2.0"                              # 配置文件版本号
 # input_npz_dir 指定了包含一个或多个预先计算好的PPSD数据 (.npz) 文件的目录。
 # 脚本将尝试处理该目录下的所有 .npz 文件。
 input_npz_dir = "./output/npz/"         # 指定存放NPZ文件的目录路径
+                                        # 支持相对路径（相对于脚本执行目录）和绝对路径
+                                        # 目录必须存在且包含有效的PPSD NPZ文件
+
 inventory_path = "./input/BJ.XML"       # 仪器响应文件路径 (可能需要用于绘图时的元数据，如台站名)
+                                        # 支持格式：StationXML (.xml) 或 dataless SEED (.dataless)
+                                        # 主要用于获取台站信息和SEED ID验证
+
 output_dir = "./output/plots/"          # 输出目录 (图像保存于此)
+                                        # 如果目录不存在，程序会自动创建
+                                        # 支持相对路径和绝对路径
 
 # output_filename_pattern 定义了生成图像文件名的规则。
 # 可以使用以下占位符:
@@ -45,101 +59,209 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 [plotting]
 # 绘图类型：可以是单个字符串如 "standard", "temporal", "spectrogram",
 # 或包含这些值的列表，例如 ["standard", "temporal", "spectrogram"]。
+# - "standard": 标准PPSD图（2D概率密度直方图）
+# - "temporal": 时间演化图（显示特定周期的PSD值随时间变化）
+# - "spectrogram": 频谱图（显示所有频率的PSD随时间变化）
 plot_type = ["standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = "auto"               # 合并策略: "auto", "none"
-                                          # "auto": 自动按SEED ID分组并使用add_npz()合并
-                                          # "none": 每个NPZ文件单独绘图
-
-# 图像生成参数
-dpi = 150                               # 图像分辨率 (dots per inch)
-figure_size = [12, 8]                   # 图像尺寸 [宽度, 高度] (英寸)
+npz_merge_strategy = "auto"               # 合并策略控制如何处理多个NPZ文件:
+                                          # "auto": 自动按SEED ID分组并使用add_npz()方法合并，
+                                          #         适用于同一台站不同时间段的数据，可显示长期趋势
+                                          # "none": 每个NPZ文件单独绘图，适用于独立分析每个时间段
 
 # ========================================
 # 4. 标准图配置
 # ========================================
 [standard]
 # --- 基本显示控制 ---
-show_histogram = true                   # 是否绘制2D直方图本身
+show_histogram = true                   # 是否绘制2D直方图本身（PPSD的核心内容）
+                                        # true: 显示彩色的概率密度分布
+                                        # false: 仅显示统计线条和模型曲线
+
 show_percentiles = false                # 是否显示百分位数线
+                                        # true: 在图上绘制指定百分位数的PSD曲线
+                                        # 具体百分位数在 [standard.percentiles] 部分配置
+
 show_noise_models = true                # 是否显示全球噪声模型（皮特森曲线）
-show_coverage = false                   # 是否显示数据覆盖度
+                                        # true: 显示NLNM（新低噪声模型）和NHNM（新高噪声模型）
+                                        # 这些曲线是地震学中的标准参考模型
+
+show_coverage = false                   # 是否显示数据覆盖度横条
+                                        # true: 在图的顶部显示数据时间覆盖情况
+                                        # 有助于理解PPSD结果的数据基础和可靠性
+
 show_mode = true                        # 是否显示众数PSD曲线
-show_mean = false                        # 是否显示均值PSD曲线
+                                        # true: 绘制每个频率点的众数（最常出现的PSD值）
+                                        # 众数代表最典型的噪声水平
+
+show_mean = false                       # 是否显示均值PSD曲线
+                                        # true: 绘制每个频率点的平均PSD值
+                                        # 均值可能受极值影响，通常众数更具代表性
 
 # --- 绘图样式控制 ---
-standard_grid = true                    # 是否在直方图上显示网格
-period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范围（秒）。若 xaxis_frequency=true, 此处应为频率 (Hz)
-xaxis_frequency = false                  # PPSD标准图X轴true按频率 (Hz) false按周期 (秒)
-cumulative_plot = false                 # 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)
-coverage_alpha = 0.5                    # 数据覆盖度横条的透明度 (0.0-1.0)，0.5表示50%透明度
-cumulative_number_of_colors = 25        # 累积直方图的离散颜色数量
-max_num_face_colors = 40                # PPSD标准图中概率面元的最大颜色数量(此为脚本自定义参数，非直接ObsPy参数)
-standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案。CMRmap反向配色（0-80%范围）- 科学标准，优化PDF显示
+standard_grid = true                    # 是否在直方图上显示网格线
+                                        # true: 显示网格，便于读取数值
+                                        # false: 不显示网格，图像更简洁
+
+period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范围（秒）
+                                        # 如果 xaxis_frequency=true，此处应为频率范围（Hz）
+                                        # 建议根据分析目标调整：微震分析用较短周期，长周期噪声分析用较长周期
+
+xaxis_frequency = false                 # PPSD标准图X轴显示模式
+                                        # false: 显示周期（秒），地震学传统表示法
+                                        # true: 显示频率（Hz），工程学常用表示法
+
+cumulative_plot = false                 # 是否显示累积直方图模式
+                                        # false: 标准概率密度图（推荐）
+                                        # true: 累积概率图，显示低于某PSD值的概率分布
+
+coverage_alpha = 0.5                    # 数据覆盖度横条的透明度 (0.0-1.0)
+                                        # 仅在 show_coverage=true 时生效
+                                        # 0.0: 完全透明，1.0: 完全不透明
+                                        # 0.5: 50%透明度，平衡可见性和主图清晰度
+
+cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别数量
+                                        # 仅在 cumulative_plot=true 时生效
+                                        # 控制累积图的颜色分级精度：
+                                        # 10-15: 粗糙分级，适合快速预览
+                                        # 25: 标准分级，适合大多数用途
+                                        # 40-50: 精细分级，适合科学发表
+
+standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案
+                                        # 可选值见 [colors] 部分的 available_cmaps
+                                        # "hot_r_custom": 热图反向配色，科学标准，优化PDF显示
+                                        # 不同配色方案适合不同的显示媒介和用途
 
 # 标准图样式子分组
 # --- 百分位数线配置 ---
 [standard.percentiles]
 values = [10, 50, 90]                   # 要显示的百分位数列表
+                                        # 常用组合：[10, 50, 90] 显示低噪声、中位数、高噪声水平
+                                        # 可自定义：如 [5, 25, 50, 75, 95] 提供更详细的统计信息
+
 color = "lightgray"                     # 百分位数线颜色
-linewidth = 1.0                         # 百分位数线宽度
-linestyle = "--"                        # 百分位数线样式 ("-", "--", "-.", ":")
+                                        # 建议使用对比明显但不干扰主图的颜色
+                                        # 可用颜色名称或十六进制代码
+
+linewidth = 1.0                         # 百分位数线宽度（磅）
+                                        # 1.0: 标准线宽，0.5: 细线，2.0: 粗线
+                                        # 根据图像大小和用途调整
+
+linestyle = "--"                        # 百分位数线样式
+                                        # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
+                                        # 虚线有助于区分统计线和模型曲线
+
 alpha = 0.8                             # 百分位数线透明度 (0.0-1.0)
+                                        # 0.8: 较高可见性但不遮挡主图
+                                        # 可根据线条颜色和图像用途调整
 
 # --- 皮特森曲线配置 ---
 [standard.peterson]
 nlnm_color = "lightgray"                # NLNM（New Low Noise Model）曲线颜色
+                                        # NLNM表示地球最低噪声水平的理论模型
+                                        # 优秀台站的噪声水平应接近此曲线
+
 nhnm_color = "lightgray"                # NHNM（New High Noise Model）曲线颜色
-linewidth = 1.0                         # 皮特森曲线线宽
-linestyle = "--"                        # 皮特森曲线线型 ("-", "--", "-.", ":")
+                                        # NHNM表示可接受的最高噪声水平
+                                        # 台站噪声应在NLNM和NHNM之间
+
+linewidth = 1.0                         # 皮特森曲线线宽（磅）
+                                        # 建议与百分位数线保持一致的线宽
+
+linestyle = "--"                        # 皮特森曲线线型
+                                        # 可用样式："-", "--", "-.", ":"
+                                        # 虚线有助于区分模型曲线和实际数据
+
 alpha = 1.0                             # 皮特森曲线透明度 (0.0-1.0)
+                                        # 1.0: 完全不透明，突出参考模型的重要性
+                                        # 可适当降低以减少对主图的干扰
 
 # --- 众数线配置 ---
 [standard.mode]
 color = "orange"                        # 众数线颜色
-linewidth = 1.0                         # 众数线宽度
-linestyle = "-"                         # 众数线样式 ("-", "--", "-.", ":")
+                                        # 建议使用醒目的颜色突出最典型的噪声水平
+                                        # 橙色与默认配色方案对比良好
+
+linewidth = 1.0                         # 众数线宽度（磅）
+                                        # 可适当加粗以突出重要性
+
+linestyle = "-"                         # 众数线样式
+                                        # 实线强调其作为主要统计量的重要性
+
 alpha = 0.9                             # 众数线透明度 (0.0-1.0)
+                                        # 高透明度确保众数线清晰可见
 
 # --- 均值线配置 ---
 [standard.mean]
 color = "green"                         # 均值线颜色
-linewidth = 1.0                         # 均值线宽度
-linestyle = "-"                         # 均值线样式 ("-", "--", "-.", ":")
+                                        # 与众数线使用不同颜色以便区分
+                                        # 绿色在大多数配色方案中都有良好对比度
+
+linewidth = 1.0                         # 均值线宽度（磅）
+                                        # 与其他统计线保持一致
+
+linestyle = "-"                         # 均值线样式
+                                        # 实线表示其作为统计量的重要性
+
 alpha = 0.9                             # 均值线透明度 (0.0-1.0)
+                                        # 高透明度确保均值线清晰可见
 
 # ========================================
 # 5. 时间演化图配置
 # ========================================
 [temporal]
 # 绘制PSD值随时间演化曲线的特定周期（秒）
-temporal_plot_periods = [0.1, 1.0, 8.0, 20.0]
+# 选择具有代表性的周期点来观察噪声的时间变化
+temporal_plot_periods = [0.1, 1.0, 8.0, 20.0]  # 常用周期：
+                                                 # 0.1秒: 高频噪声（如人文噪声）
+                                                 # 1.0秒: 地脉动主频段
+                                                 # 8.0秒: 地脉动双峰结构
+                                                 # 20.0秒: 长周期背景噪声
+
 # X轴（时间轴）刻度标签的时间格式
-time_format_x = "%Y-%m-%d"
+time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftime格式）
+                                        # "%Y-%m-%d": 年-月-日 (2023-01-15)
+                                        # "%H:%M": 时:分 (14:30)
+                                        # "%Y%m%d %H:%M": 年月日 时:分 (20230115 14:30)
+
 # 是否在图上显示网格
-temporal_grid = true
+temporal_grid = true                    # true: 显示网格，便于读取时间和PSD值
+                                        # false: 不显示网格，图像更简洁
+
 # 是否显示图例
-temporal_legend = true
+temporal_legend = true                  # true: 显示图例，标识不同周期的曲线
+                                        # false: 不显示图例，节省空间
+
 # 线条颜色 (可选，为多个周期的列表或单一颜色)
-# temporal_color = ["blue", "red", "green", "orange"]
+# temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色
 # 线条样式 (可选)
-# temporal_linestyle = "-"
+# temporal_linestyle = "-"              # 所有曲线使用相同样式
 # 线条标记 (可选)
-# temporal_marker = "o"
+# temporal_marker = "o"                 # 数据点标记样式
 
 # ========================================
 # 6. 频谱图配置
 # ========================================
 [spectrogram]
 # 颜色图的振幅限制 [min_db, max_db]
-clim = [-180, -100]
-# X轴（时间轴）刻度标签的时间格式 - 测试明显格式验证修复
-time_format_x = "%Y%m%d %H:%M"
+clim = [-180, -100]                     # PSD显示范围（dB）
+                                        # [-180, -100]: 适合大多数地震台站
+                                        # 根据台站噪声水平调整范围以优化对比度
+
+# X轴（时间轴）刻度标签的时间格式
+time_format_x = "%H:%M"                 # 频谱图时间轴格式
+                                        # 建议使用较详细的格式显示日期和时间
+                                        # 可根据数据时间跨度调整精度
+
 # 是否在图上显示网格
-spectrogram_grid = true
-# PPSD图的颜色映射方案。自定义配色：Ocean反向配色，浅色到深色，优雅渐变
-spectrogram_cmap = "ocean_r_custom"
+spectrogram_grid = true                 # true: 显示网格，便于读取时间和频率
+                                        # false: 不显示网格，突出频谱变化
+
+# PPSD图的颜色映射方案
+spectrogram_cmap = "ocean_r_custom"     # 频谱图专用配色方案
+                                        # "ocean_r_custom": Ocean反向配色，浅色到深色，优雅渐变
+                                        # 不同于标准图的配色，适合频谱数据的时间变化显示
 
 # ========================================
 # 7. 颜色配置
@@ -159,30 +281,59 @@ available_cmaps = [
 # 线条颜色预设
 # 预定义的颜色方案，便于统一配色管理
 [colors.presets]
-primary = "blue"                        # 主色调
-secondary = "red"                       # 辅助色调
-accent = "orange"                       # 强调色
-neutral = "lightgray"                   # 中性色
-success = "green"                       # 成功状态色
-warning = "orange"                      # 警告状态色
-error = "red"                           # 错误状态色
+primary = "blue"                        # 主色调：用于主要图形元素
+secondary = "red"                       # 辅助色调：用于对比和强调
+accent = "orange"                       # 强调色：用于突出重要信息
+neutral = "lightgray"                   # 中性色：用于背景和辅助线条
+success = "green"                       # 成功状态色：用于正常状态指示
+warning = "orange"                      # 警告状态色：用于注意事项
+error = "red"                           # 错误状态色：用于问题指示
 
 # ========================================
 # 8. 高级设置
 # ========================================
 [advanced]
 # Matplotlib后端设置
-matplotlib_backend = "Agg"              # 使用非交互式后端，不显示图片
+matplotlib_backend = "Agg"              # Matplotlib渲染后端
+                                        # "Agg": 非交互式后端，不显示图片窗口，适合服务器环境
+                                        # "Qt5Agg": 交互式后端，可显示图片窗口，适合桌面环境
+
 # 字体设置
 font_family = "WenQuanYi Micro Hei"     # 支持中文显示的字体
+                                        # Linux: "WenQuanYi Micro Hei", "DejaVu Sans"
+                                        # Windows: "SimHei", "Microsoft YaHei"
+                                        # macOS: "PingFang SC", "Heiti SC"
+
 enable_chinese_fonts = true             # 是否启用中文字体支持
+                                        # true: 自动配置中文字体，支持中文标签和标题
+                                        # false: 使用默认英文字体
+
+# 字体大小设置
+font_size = 9                          # 图表中所有文字元素的字体大小（磅）
+                                        # 影响：坐标轴标签、刻度标签、标题、图例、颜色条
+                                        # 6: 极小字体，适合密集信息显示
+                                        # 8: 小字体，适合复杂图表和多子图
+                                        # 10: 标准字体，平衡可读性和空间利用（推荐）
+                                        # 12: 大字体，适合简单图表和展示用途
+                                        # 14: 超大字体，适合演示和打印
+
 # 性能优化设置
 memory_optimization = true              # 是否启用内存优化
+                                        # true: 在处理大量数据时进行内存管理优化
+                                        # false: 标准内存使用模式
+
 parallel_processing = false             # 是否启用并行处理（实验性功能）
+                                        # true: 使用多进程加速计算（可能不稳定）
+                                        # false: 单进程处理（推荐）
 
 # 兼容性设置
 # 指定需要的最低库版本，用于兼容性检查
 [advanced.compatibility]
 obspy_version = ">=1.4.0"               # ObsPy库最低版本要求
+                                        # 确保所需功能的可用性
+
 numpy_version = ">=1.20.0"              # NumPy库最低版本要求
-matplotlib_version = ">=3.5.0"          # Matplotlib库最低版本要求 
+                                        # 保证数值计算的准确性和性能
+
+matplotlib_version = ">=3.5.0"          # Matplotlib库最低版本要求
+                                        # 确保绘图功能的兼容性 
