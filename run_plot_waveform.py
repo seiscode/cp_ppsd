@@ -23,7 +23,7 @@ BJ台网MinISEED数据波形+频谱+频谱图绘制工具
 - 保存优化尺寸PNG图像
 
 使用方法：
-    python plot_waveform_spectrum.py [data_directory]
+    python run_plot_waveform.py [data_directory]
     
 参数：
     data_directory: miniseed文件所在目录（可选，默认为./data）
@@ -341,9 +341,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-    python plot_waveform_spectrum.py                    # 快速模式
-    python plot_waveform_spectrum.py -q                 # 质量模式
-    python plot_waveform_spectrum.py /path/to/mseed     # 指定数据目录
+    python run_plot_waveform.py                    # 快速模式
+python run_plot_waveform.py -q                 # 质量模式
+python run_plot_waveform.py /path/to/mseed     # 指定数据目录
         """
     )
     

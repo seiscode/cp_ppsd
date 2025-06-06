@@ -33,7 +33,7 @@ pip install obspy matplotlib numpy
 
 ### 基本语法
 ```bash
-python plot_waveform_spectrum.py [data_directory] [-o OUTPUT_DIRECTORY] [-q]
+python run_plot_waveform.py [data_directory] [-o OUTPUT_DIRECTORY] [-q]
 ```
 
 ### 参数说明
@@ -53,7 +53,7 @@ python plot_waveform_spectrum.py [data_directory] [-o OUTPUT_DIRECTORY] [-q]
 
 #### 1. 使用默认设置（快速模式）
 ```bash
-python plot_waveform_spectrum.py
+python run_plot_waveform.py
 ```
 - 数据目录: `./data`
 - 输出目录: `./output/waveforms`
@@ -61,7 +61,7 @@ python plot_waveform_spectrum.py
 
 #### 2. 质量模式
 ```bash
-python plot_waveform_spectrum.py -q
+python run_plot_waveform.py -q
 ```
 - 更高质量图像 (200 DPI)
 - 更多绘图点数
@@ -69,17 +69,17 @@ python plot_waveform_spectrum.py -q
 
 #### 3. 指定数据目录
 ```bash
-python plot_waveform_spectrum.py /path/to/seismic/data
+python run_plot_waveform.py /path/to/seismic/data
 ```
 
 #### 4. 指定数据和输出目录
 ```bash
-python plot_waveform_spectrum.py data -o ./results/waveforms
+python run_plot_waveform.py data -o ./results/waveforms
 ```
 
 #### 5. 使用相对路径和质量模式
 ```bash
-python plot_waveform_spectrum.py ../seismic_data --output ../analysis_results -q
+python run_plot_waveform.py ../seismic_data --output ../analysis_results -q
 ```
 
 ## 支持的数据格式
