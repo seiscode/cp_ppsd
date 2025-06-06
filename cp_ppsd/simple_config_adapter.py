@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-:Author: 
+:Author:
     muly (muly@cea-igp.ac.cn)
 :license:
     GNU Lesser General Public License, Version 3
@@ -20,21 +20,21 @@ from typing import Dict, Any
 class SimpleConfigAdapter:
     """
     简单配置适配器类
-    
+
     处理按绘图类型分组的配置文件
     """
-    
+
     def __init__(self, config_path: str):
         """
         初始化适配器
-        
+
         Args:
             config_path: 配置文件路径
         """
         self.config_path = config_path
         self.raw_config = self._load_config()
         self.adapted_config = self._adapt_config()
-    
+
     def _load_config(self) -> Dict[str, Any]:
         """加载原始配置文件"""
         try:
@@ -43,21 +43,21 @@ class SimpleConfigAdapter:
         except Exception as e:
             print(f"加载配置文件失败: {e}")
             return {}
-    
+
     def _adapt_config(self) -> Dict[str, Any]:
         """
         将分组配置适配为兼容格式
-        
+
         Returns:
             适配后的配置字典
         """
         adapted = {}
-        
+
         # 1. 复制全局配置（非分组配置）
         for key, value in self.raw_config.items():
             if not isinstance(value, dict):
                 adapted[key] = value
-        
+
         # 2. 处理standard分组
         if 'standard' in self.raw_config:
             standard_config = self.raw_config['standard']
@@ -70,7 +70,7 @@ class SimpleConfigAdapter:
                     adapted[f'standard_{key}'] = value
                 else:
                     adapted[key] = value
-        
+
         # 3. 处理temporal分组
         if 'temporal' in self.raw_config:
             temporal_config = self.raw_config['temporal']
@@ -85,7 +85,7 @@ class SimpleConfigAdapter:
                     adapted['temporal_cmap'] = value
                 else:
                     adapted[f'temporal_{key}'] = value
-        
+
         # 4. 处理spectrogram分组
         if 'spectrogram' in self.raw_config:
             spectrogram_config = self.raw_config['spectrogram']
@@ -99,21 +99,21 @@ class SimpleConfigAdapter:
                     adapted['spectrogram_cmap'] = value
                 else:
                     adapted[f'spectrogram_{key}'] = value
-        
+
         return adapted
-    
+
     def get_config(self) -> Dict[str, Any]:
         """获取适配后的配置"""
         return self.adapted_config
-    
+
     def get_section(self, section: str) -> Dict[str, Any]:
         """获取特定分组的配置"""
         return self.raw_config.get(section, {})
-    
+
     def print_mapping(self):
         """打印配置映射关系"""
         print("=== 简单分组配置映射 ===\n")
-        
+
         print("分组结构:")
         print("├── 全局配置")
         print("│   ├── log_level")
@@ -142,26 +142,26 @@ class SimpleConfigAdapter:
 
 def demonstrate_simple_config():
     """演示简单分组配置的使用"""
-    
+
     config_path = "input/config_plot_simple_grouped.toml"
-    
+
     print("=== 简单分组配置演示 ===\n")
-    
+
     # 创建适配器
     adapter = SimpleConfigAdapter(config_path)
-    
+
     print("1. 原始分组结构:")
     raw_config = adapter.raw_config
-    
+
     # 显示全局配置
     print("  全局配置:")
-    global_keys = [key for key, value in raw_config.items() 
+    global_keys = [key for key, value in raw_config.items()
                    if not isinstance(value, dict)]
     for key in global_keys[:5]:  # 显示前5个
         print(f"    {key} = {raw_config[key]}")
     if len(global_keys) > 5:
-        print(f"    ... (还有{len(global_keys)-5}个)")
-    
+        print(f"    ... (还有{len(global_keys) - 5}个)")
+
     # 显示各分组
     for section in ['standard', 'temporal', 'spectrogram']:
         if section in raw_config:
@@ -170,11 +170,11 @@ def demonstrate_simple_config():
             for key in list(section_config.keys())[:3]:  # 显示前3个
                 print(f"    {key} = {section_config[key]}")
             if len(section_config) > 3:
-                print(f"    ... (还有{len(section_config)-3}个参数)")
-    
+                print(f"    ... (还有{len(section_config) - 3}个参数)")
+
     print("\n2. 适配后的兼容配置:")
     adapted = adapter.get_config()
-    
+
     # 显示关键配置
     key_examples = [
         'plot_types', 'show_percentiles', 'percentiles',
@@ -182,23 +182,23 @@ def demonstrate_simple_config():
         'temporal_plot_periods', 'time_format_x_temporal',
         'spectrogram_clim', 'time_format_x_spectrogram'
     ]
-    
+
     for key in key_examples:
         if key in adapted:
             print(f"  {key} = {adapted[key]}")
-    
+
     print("\n3. 配置映射关系:")
     adapter.print_mapping()
-    
+
     # 演示如何访问特定分组
     print("\n4. 直接访问特定分组:")
     standard_config = adapter.get_section('standard')
     print("  [standard] 百分位数配置:")
-    percentile_keys = [k for k in standard_config.keys() 
+    percentile_keys = [k for k in standard_config.keys()
                        if 'percentile' in k]
     for key in percentile_keys:
         print(f"    {key}: {standard_config[key]}")
 
 
 if __name__ == "__main__":
-    demonstrate_simple_config() 
+    demonstrate_simple_config()

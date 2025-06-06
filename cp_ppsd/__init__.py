@@ -21,8 +21,8 @@ CP-PPSD: 概率功率谱密度计算与可视化工具包
 版本: 1.0.0
 """
 
-from .cp_psd import PPSDProcessor
 
+from .cp_psd import PPSDProcessor
 __version__ = "1.0.0"
 __author__ = "地球物理Python编程助手"
 __email__ = ""
@@ -30,4 +30,4 @@ __description__ = "概率功率谱密度计算与可视化工具包"
 
 __all__ = [
     "PPSDProcessor",
-] 
+]

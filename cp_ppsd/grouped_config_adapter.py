@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-:Author: 
+:Author:
     muly (muly@cea-igp.ac.cn)
 :license:
     GNU Lesser General Public License, Version 3
@@ -27,27 +27,27 @@ from typing import Dict, Any
 class GroupedConfigAdapter:
     """
     分组配置适配器类
-    
+
     处理config_plot.toml的嵌套分组配置文件
     """
-    
+
     def __init__(self, config_path: str):
         """
         初始化适配器
-        
+
         Args:
             config_path: 配置文件路径
         """
         self.config_path = config_path
         self.raw_config = self._load_config()
         self.adapted_config = self._adapt_config()
-    
+
     def _convert_npz_merge_strategy(self, value: Any) -> bool:
         """转换 npz_merge_strategy 参数值
-        
+
         Args:
             value: 可能是字符串("auto", "none")或布尔值(True, False)
-            
+
         Returns:
             bool: True 表示合并, False 表示不合并
         """
@@ -76,18 +76,18 @@ class GroupedConfigAdapter:
         except Exception as e:
             print(f"加载配置文件失败: {e}")
             return {}
-    
+
     def _adapt_config(self) -> Dict[str, Any]:
         """适配分组配置为兼容格式"""
         adapted = {}
-        
+
         # 1. 处理global配置
         if 'global' in self.raw_config:
             global_config = self.raw_config['global']
             adapted['log_level'] = global_config.get('log_level', 'DEBUG')
             adapted['description'] = global_config.get('description', '')
             adapted['version'] = global_config.get('version', '1.0')
-        
+
         # 2. 处理paths配置
         if 'paths' in self.raw_config:
             paths_config = self.raw_config['paths']
@@ -95,10 +95,10 @@ class GroupedConfigAdapter:
                 'input_npz_dir': paths_config.get('input_npz_dir', './output/npz/'),
                 'inventory_path': paths_config.get('inventory_path', './input/BJ.XML'),
                 'output_dir': paths_config.get('output_dir', './output/plots/'),
-                'output_filename_pattern': paths_config.get('output_filename_pattern', 
-                    '{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png')
+                'output_filename_pattern': paths_config.get('output_filename_pattern',
+                                                            '{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png')
             })
-        
+
         # 3. 处理plotting配置
         plotting_args = {}
         if 'plotting' in self.raw_config:
@@ -106,19 +106,24 @@ class GroupedConfigAdapter:
             adapted.update({
                 'plot_types': plotting_config.get('plot_types', ['standard']),
                 'npz_merge_strategy': self._convert_npz_merge_strategy(plotting_config.get('npz_merge_strategy', True)),
-                            # dpi 和 figure_size 已硬编码，不再从配置读取
+                # dpi 和 figure_size 已硬编码，不再从配置读取
             })
-            
+
             # 将绘图类型和合并策略也加入args中（程序期望从args获取）
-            plotting_args.update({
-                'plot_type': plotting_config.get('plot_types', ['standard']),
-                'npz_merge_strategy': self._convert_npz_merge_strategy(plotting_config.get('npz_merge_strategy', True))
-            })
-        
+            plotting_args.update(
+                {
+                    'plot_type': plotting_config.get(
+                        'plot_types',
+                        ['standard']),
+                    'npz_merge_strategy': self._convert_npz_merge_strategy(
+                        plotting_config.get(
+                            'npz_merge_strategy',
+                            True))})
+
         # 4. 处理standard配置及其子分组 - 包装到args中
         if 'standard' in self.raw_config:
             standard_config = self.raw_config['standard']
-            
+
             # 基础standard配置
             plotting_args.update({
                 'show_histogram': standard_config.get('show_histogram', True),
@@ -133,7 +138,7 @@ class GroupedConfigAdapter:
                 'cumulative_number_of_colors': standard_config.get('cumulative_number_of_colors', 25),
                 'standard_cmap': standard_config.get('standard_cmap', 'hot_r_custom')
             })
-            
+
             # 显示开关
             plotting_args.update({
                 'show_percentiles': standard_config.get('show_percentiles', True),
@@ -141,7 +146,7 @@ class GroupedConfigAdapter:
                 'show_mode': standard_config.get('show_mode', False),
                 'show_mean': standard_config.get('show_mean', False)
             })
-            
+
             # 处理percentiles子分组
             if 'percentiles' in standard_config:
                 percentiles_config = standard_config['percentiles']
@@ -162,7 +167,7 @@ class GroupedConfigAdapter:
                     'percentile_linestyle': percentiles_config.get('linestyle', '--'),
                     'percentile_alpha': percentiles_config.get('alpha', 0.8)
                 })
-            
+
             # 处理peterson子分组
             if 'peterson' in standard_config:
                 peterson_config = standard_config['peterson']
@@ -173,7 +178,7 @@ class GroupedConfigAdapter:
                     'peterson_linestyle': peterson_config.get('linestyle', '--'),
                     'peterson_alpha': peterson_config.get('alpha', 0.8)
                 })
-            
+
             # 处理mode子分组
             if 'mode' in standard_config:
                 mode_config = standard_config['mode']
@@ -183,7 +188,7 @@ class GroupedConfigAdapter:
                     'mode_linestyle': mode_config.get('linestyle', '-'),
                     'mode_alpha': mode_config.get('alpha', 0.9)
                 })
-            
+
             # 处理mean子分组
             if 'mean' in standard_config:
                 mean_config = standard_config['mean']
@@ -193,7 +198,7 @@ class GroupedConfigAdapter:
                     'mean_linestyle': mean_config.get('linestyle', '-'),
                     'mean_alpha': mean_config.get('alpha', 0.9)
                 })
-        
+
         # 5. 处理temporal配置
         if 'temporal' in self.raw_config:
             temporal_config = self.raw_config['temporal']
@@ -205,7 +210,7 @@ class GroupedConfigAdapter:
                 'temporal_linestyle': temporal_config.get('temporal_linestyle', '-'),
                 'temporal_marker': temporal_config.get('temporal_marker', None)
             })
-        
+
         # 6. 处理spectrogram配置
         if 'spectrogram' in self.raw_config:
             spectrogram_config = self.raw_config['spectrogram']
@@ -215,19 +220,19 @@ class GroupedConfigAdapter:
                 'spectrogram_grid': spectrogram_config.get('spectrogram_grid', True),
                 'spectrogram_cmap': spectrogram_config.get('spectrogram_cmap', 'viridis')
             })
-        
+
         # 8. 处理advanced配置
         if 'advanced' in self.raw_config:
             advanced_config = self.raw_config['advanced']
             plotting_args.update({
                 'matplotlib_backend': advanced_config.get('matplotlib_backend', 'Agg'),
-                            'font_family': advanced_config.get('font_family', 'WenQuanYi Micro Hei'),
-            'enable_chinese_fonts': advanced_config.get('enable_chinese_fonts', True),
-            'font_size': advanced_config.get('font_size', 8),
+                'font_family': advanced_config.get('font_family', 'WenQuanYi Micro Hei'),
+                'enable_chinese_fonts': advanced_config.get('enable_chinese_fonts', True),
+                'font_size': advanced_config.get('font_size', 8),
                 'memory_optimization': advanced_config.get('memory_optimization', True),
                 'parallel_processing': advanced_config.get('parallel_processing', False)
             })
-            
+
             # 处理compatibility子分组
             if 'compatibility' in advanced_config:
                 compatibility_config = advanced_config['compatibility']
@@ -236,12 +241,12 @@ class GroupedConfigAdapter:
                     'numpy_version': compatibility_config.get('numpy_version', '>=1.20.0'),
                     'matplotlib_version': compatibility_config.get('matplotlib_version', '>=3.5.0')
                 })
-        
+
         # 7. 处理colors配置（完整映射）
         if 'colors' in self.raw_config:
             colors_config = self.raw_config['colors']
             plotting_args['available_cmaps'] = colors_config.get('available_cmaps', [])
-            
+
             if 'presets' in colors_config:
                 presets = colors_config['presets']
                 plotting_args.update({
@@ -253,20 +258,20 @@ class GroupedConfigAdapter:
                     'color_warning': presets.get('warning', 'orange'),
                     'color_error': presets.get('error', 'red')
                 })
-        
+
         # 将绘图参数包装到args字段中（与现有程序结构兼容）
         adapted['args'] = plotting_args
-        
+
         return adapted
-    
+
     def get_config(self) -> Dict[str, Any]:
         """获取适配后的配置"""
         return self.adapted_config
-    
+
     def get_section(self, section: str) -> Dict[str, Any]:
         """获取特定分组的配置"""
         return self.raw_config.get(section, {})
-    
+
     def get_subsection(self, section: str, subsection: str) -> Dict[str, Any]:
         """获取特定子分组的配置"""
         if section in self.raw_config:
@@ -276,11 +281,11 @@ class GroupedConfigAdapter:
                 return section_config['percentile_settings']
             return section_config.get(subsection, {})
         return {}
-    
+
     def print_structure(self):
         """打印配置结构"""
         print("=== 分组配置结构 ===\n")
-        
+
         print("配置文件结构:")
         print("├── [global] 全局设置")
         print("├── [paths] 路径配置")
@@ -296,11 +301,11 @@ class GroupedConfigAdapter:
         print("│   └── [colors.presets] 颜色预设")
         print("└── [advanced] 高级设置")
         print("    └── [advanced.compatibility] 兼容性设置")
-    
+
     def print_mapping(self):
         """打印配置映射关系"""
         print("\n=== 主要配置映射 ===\n")
-        
+
         mappings = [
             ("[global].log_level", "log_level"),
             ("[paths].input_npz_dir", "input_npz_dir"),
@@ -313,18 +318,18 @@ class GroupedConfigAdapter:
             ("[temporal].plot_periods", "temporal_plot_periods"),
             ("[spectrogram].clim", "clim"),
         ]
-        
+
         for grouped_path, compat_name in mappings:
             print(f"  {grouped_path:30} -> {compat_name}")
 
 
 def demonstrate_grouped_config():
     """演示分组配置的使用"""
-    
+
     config_path = "input/config_plot.toml"  # 更新为新的配置文件路径
-    
+
     print("=== 分组配置适配器演示 ===\n")
-    
+
     # 创建适配器
     try:
         adapter = GroupedConfigAdapter(config_path)
@@ -336,23 +341,23 @@ def demonstrate_grouped_config():
         print(f"加载配置文件失败: {e}")
         print("显示配置结构和映射示例...\n")
         adapter = None
-    
+
     # 显示配置结构（即使文件不存在也显示）
     if adapter:
         adapter.print_structure()
         # 显示映射关系
         adapter.print_mapping()
-        
+
         print("\n=== 适配后的关键配置 ===\n")
         adapted = adapter.get_config()
-        
+
         # 显示主要配置
         key_configs = [
             ('log_level', '日志级别'),
             ('plot_types', '绘图类型'),
             ('args', 'args字段')
         ]
-        
+
         for key, desc in key_configs:
             if key in adapted:
                 if key == 'args':
@@ -360,19 +365,25 @@ def demonstrate_grouped_config():
                     # 显示args中的关键参数
                     args = adapted[key]
                     important_args = [
-                        'show_percentiles', 'percentiles', 'percentile_color',
-                        'show_noise_models', 'peterson_nlnm_color', 'peterson_nhnm_color',
-                        'show_mode', 'mode_color', 'show_mean', 'mean_color',
-                        'standard_cmap'
-                    ]
+                        'show_percentiles',
+                        'percentiles',
+                        'percentile_color',
+                        'show_noise_models',
+                        'peterson_nlnm_color',
+                        'peterson_nhnm_color',
+                        'show_mode',
+                        'mode_color',
+                        'show_mean',
+                        'mean_color',
+                        'standard_cmap']
                     for arg_key in important_args:
                         if arg_key in args:
                             print(f"    {arg_key}: {args[arg_key]}")
                 else:
                     print(f"  {desc:12}: {adapted[key]}")
-        
+
         print("\n=== 直接访问分组示例 ===\n")
-        
+
         # 访问percentiles子分组
         percentiles_config = adapter.get_subsection('standard', 'percentiles')
         print("百分位数子配置:")
@@ -381,7 +392,7 @@ def demonstrate_grouped_config():
                 print(f"  {key}: {value}")
         else:
             print("  (未找到百分位数配置)")
-        
+
         print("\n皮特森曲线子配置:")
         peterson_config = adapter.get_subsection('standard', 'peterson')
         if peterson_config:
@@ -406,9 +417,9 @@ def demonstrate_grouped_config():
         print("│   └── [colors.presets] 颜色预设")
         print("└── [advanced] 高级设置")
         print("    └── [advanced.compatibility] 兼容性设置")
-        
+
         print("\n=== 主要配置映射 ===\n")
-        
+
         mappings = [
             ("[global].log_level", "log_level"),
             ("[paths].input_npz_dir", "input_npz_dir"),
@@ -421,13 +432,13 @@ def demonstrate_grouped_config():
             ("[temporal].plot_periods", "temporal_plot_periods"),
             ("[spectrogram].clim", "clim"),
         ]
-        
+
         for grouped_path, compat_name in mappings:
             print(f"  {grouped_path:30} -> {compat_name}")
-        
+
         print("\n=== 适配后的关键配置 ===\n")
         print("  (配置文件未找到，无法显示实际配置)")
 
 
 if __name__ == "__main__":
-    demonstrate_grouped_config() 
+    demonstrate_grouped_config()

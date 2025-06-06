@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""
-Author: 
-    muly (muly@cea-igp.ac.cn)
-:license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
-"""
+
+from setuptools import setup, find_packages
+import os
+
 """
 CP-PPSD 安装脚本
 
@@ -13,13 +10,16 @@ CP-PPSD 安装脚本
     pip install -e .  # 开发模式安装
     pip install .     # 正常安装
 """
+"""
+Author:
+    muly (muly@cea-igp.ac.cn)
+:license:
+    GNU Lesser General Public License, Version 3
+    (https://www.gnu.org/copyleft/lesser.html)
+"""
 
-from setuptools import setup, find_packages
-import os
 
 # 读取README文件
-
-
 def read_readme():
     """读取README.md文件内容"""
     readme_path = os.path.join(os.path.dirname(__file__), 'README.md')
@@ -30,8 +30,6 @@ def read_readme():
 
 
 # 读取requirements.txt文件
-
-
 def read_requirements():
     """读取requirements.txt文件内容"""
     req_path = os.path.join(os.path.dirname(__file__), 'requirements.txt')
@@ -85,4 +83,4 @@ setup(
         "Source": "",
         "Tracker": "",
     },
-) 
+)
