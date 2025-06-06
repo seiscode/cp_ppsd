@@ -4,8 +4,10 @@
 
 本文档详细说明了`run_cp_ppsd.py`主入口脚本和`cp_ppsd/cp_psd.py`核心模块中PPSD（Probabilistic Power Spectral Density）函数的使用方法。该工具专门用于地震学中的背景噪声分析，基于ObsPy库实现，支持通过TOML配置文件进行批量地动噪声PPSD计算和可视化。
 
-**重要更新 (2025年5月27日)**：
-- **文件名时间信息优化**: 输出文件名中的时间信息现在来自MiniSEED数据的开始时间，而不是处理时间，确保文件名能准确反映数据的实际时间范围
+**重要更新 (2025年6月5日)**：
+- **temporal图像绘制功能完善**: 新增`temporal_linewidth`和`temporal_marker_size`参数，允许精确控制时间演化图中线条宽度和标记大小
+- **配置文件结构优化**: 完善了分组结构配置文件格式，改进了参数组织和关联性管理
+- **文件名时间信息优化**: 输出文件名中的时间信息现在支持开始时间和结束时间范围，确保文件名能准确反映数据的实际时间范围
 - **special_handling参数完全支持**: 程序现在完全支持None、"ringlaser"、"hydrophone"三种模式，包括自动从StationXML提取sensitivity
 - **多格式仪器响应文件支持**: 验证支持StationXML (.xml) 和 dataless SEED (.dataless) 格式
 
@@ -83,13 +85,16 @@ output_dir = "./output/npz"              # NPZ文件输出目录
 # === 3. 输出生成控制 (隐式) ===
 # NPZ文件将总是被创建。
 # output_npz_filename_pattern 定义了生成NPZ数据文件名的规则。
-#   时间信息 (来自MiniSEED数据的开始时间):
-#     {year}, {month}, {day}, {hour}, {minute}, {second}, {julday}
-#     {datetime} (例如 YYYYMMDDHHMM 格式的紧凑时间戳)
+#   时间信息 (来自MiniSEED数据的开始/结束时间):
+#     开始时间: {start_year}, {start_month}, {start_day}, {start_hour}, {start_minute}, {start_second}, {start_julday}
+#     {start_datetime} (例如 YYYYMMDDHHMM 格式的紧凑开始时间戳)
+#     结束时间: {end_year}, {end_month}, {end_day}, {end_hour}, {end_minute}, {end_second}, {end_julday}
+#     {end_datetime} (例如 YYYYMMDDHHMM 格式的紧凑结束时间戳)
+#     兼容性: {datetime}, {year}, {month}, {day}, {hour}, {minute}, {second}, {julday} (等同于开始时间)
 #   台站信息: {network}, {station}, {location}, {channel}
-#     例如: "PPSD_{datetime}_{network}-{station}-{location}-{channel}.npz"
+#     例如: "PPSD_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.npz"
 # 如果未设置或为空，脚本将使用默认命名规则。
-output_npz_filename_pattern = "PPSD_{datetime}_{network}-{station}-{location}-{channel}.npz"
+output_npz_filename_pattern = "PPSD_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.npz"
 
 # === 4. PPSD核心计算参数 ([args]表内) ===
 [args]
@@ -116,7 +121,7 @@ merge_method = 0                      # 合并方法：0=标准, 1=插值, -1=�
                                       # 1: 使用插值处理重叠
                                       # -1: 仅清理，不处理重叠
 
-# merge_fill_value = 0                # 间隙填充值，默认None使用masked array
+merge_fill_value = "None"             # 间隙填充值，默认None使用masked array
                                       # None: 使用numpy.ma.masked_array保留间隙信息
                                       # 数值: 用指定值填充间隙
                                       # "latest": 使用间隙前的最后一个值
@@ -348,14 +353,17 @@ output_dir = "./output/plots/"          # 输出目录 (图像保存于此)
 
 # output_filename_pattern 定义了生成图像文件名的规则。
 # 可以使用以下占位符:
-#   绘图类型(在绘图时确定): {plot_type} （plot_type="standard", plot_type="temporal", plot_type="spectrogram"）
-#   时间信息 (通常来自PPSD数据的起始时间或处理时间):
-#     {year}, {month}, {day}, {hour}, {minute}, {second}, {julday}
-#     {datetime} (例如 YYYYMMDDHHMM 格式的紧凑时间戳)
+#   绘图类型(在绘图时确定): {plot_type} （plot_type="standard", "temporal", "spectrogram"）
+#   时间信息 (来自PPSD数据的开始/结束时间):
+#     开始时间: {start_year}, {start_month}, {start_day}, {start_hour}, {start_minute}, {start_second}, {start_julday}
+#     {start_datetime} (例如 YYYYMMDDHHMM 格式的紧凑开始时间戳)
+#     结束时间: {end_year}, {end_month}, {end_day}, {end_hour}, {end_minute}, {end_second}, {end_julday}
+#     {end_datetime} (例如 YYYYMMDDHHMM 格式的紧凑结束时间戳)
+#     兼容性: {datetime}, {year}, {month}, {day}, {hour}, {minute}, {second}, {julday} (等同于开始时间)
 #   台站信息: {network}, {station}, {location}, {channel}
-#     例如: "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+#     例如: "{plot_type}_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.png"
 # 如果此参数未设置或为空，脚本将使用基于NPZ文件名的默认命名规则。
-output_filename_pattern = "{plot_type}_{datetime}_{network}-{station}-{location}-{channel}.png"
+output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}.{station}.{location}.{channel}.png"
 
 # ========================================
 # 3. 绘图基本设置
@@ -363,38 +371,68 @@ output_filename_pattern = "{plot_type}_{datetime}_{network}-{station}-{location}
 [plotting]
 # 绘图类型：可以是单个字符串如 "standard", "temporal", "spectrogram",
 # 或包含这些值的列表，例如 ["standard", "temporal", "spectrogram"]。
-plot_types = ["standard", "temporal", "spectrogram"]
+plot_type = ["standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = "auto"               # 合并策略: "auto", "none"
-                                          # "auto": 自动按SEED ID分组并使用add_npz()合并
-                                          # "none": 每个NPZ文件单独绘图
-
-# 图像生成参数
-dpi = 150                               # 图像分辨率 (dots per inch)
-figure_size = [12, 8]                   # 图像尺寸 [宽度, 高度] (英寸)
+npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
+                                          # true: 自动按SEED ID分组并使用add_npz()方法合并，
+                                          #       适用于同一台站不同时间段的数据，可显示长期趋势
+                                          # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
 
 # ========================================
 # 4. 标准图配置
 # ========================================
 [standard]
 # --- 基本显示控制 ---
-show_histogram = true                   # 是否绘制2D直方图本身
-show_percentiles = false                # 是否显示百分位数线
+show_histogram = true                   # 是否绘制2D直方图本身（PPSD的核心内容）
+                                        # true: 显示彩色的概率密度分布
+                                        # false: 仅显示统计线条和模型曲线
+
+show_percentiles = true                # 是否显示百分位数线
+                                        # true: 在图上绘制指定百分位数的PSD曲线
+                                        # 具体百分位数在 [standard.percentiles] 部分配置
+
 show_noise_models = true                # 是否显示全球噪声模型（皮特森曲线）
-show_coverage = false                   # 是否显示数据覆盖度
+                                        # true: 显示NLNM（新低噪声模型）和NHNM（新高噪声模型）
+                                        # 这些曲线是地震学中的标准参考模型
+
 show_mode = true                        # 是否显示众数PSD曲线
+                                        # true: 绘制每个频率点的众数（最常出现的PSD值）
+                                        # 众数代表最典型的噪声水平
+
 show_mean = false                       # 是否显示均值PSD曲线
+                                        # true: 绘制每个频率点的平均PSD值
+                                        # 均值可能受极值影响，通常众数更具代表性
 
 # --- 绘图样式控制 ---
-standard_grid = true                    # 是否在直方图上显示网格
-period_lim = [0.01, 50.0]              # PPSD标准图绘图显示的周期范围（秒）。若 xaxis_frequency=true, 此处应为频率 (Hz)
-xaxis_frequency = false                 # PPSD标准图X轴是否显示频率 (Hz) 而不是周期 (秒)
-cumulative_plot = false                 # 是否显示累积直方图 (PPSD.plot中的 cumulative 参数)
-coverage_alpha = 0.5                    # 数据覆盖度横条的透明度 (0.0-1.0)，0.5表示50%透明度
-cumulative_number_of_colors = 25        # 累积直方图的离散颜色数量，控制颜色分级精度
+standard_grid = true                    # 是否在直方图上显示网格线
+                                        # true: 显示网格，便于读取数值
+                                        # false: 不显示网格，图像更简洁
 
-standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案。CMRmap反向配色（0-80%范围）- 科学标准，优化PDF显示
+period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范围（秒）
+                                        # 如果 xaxis_frequency=true，此处应为频率范围（Hz）
+                                        # 建议根据分析目标调整：微震分析用较短周期，长周期噪声分析用较长周期
+
+xaxis_frequency = true                # PPSD标准图X轴显示模式
+                                        # false: 显示周期（秒），地震学传统表示法
+                                        # true: 显示频率（Hz），工程学常用表示法
+
+cumulative_plot = false                 # 是否显示累积直方图模式
+                                        # false: 标准概率密度图（推荐）
+                                        # true: 累积概率图，显示低于某PSD值的概率分布
+                                        # show_histogram = true 时，cumulative_plot = true 会绘制累积直方图
+
+cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别数量
+                                        # 仅在 cumulative_plot=true 时生效
+                                        # 控制累积图的颜色分级精度：
+                                        # 10-15: 粗糙分级，适合快速预览
+                                        # 25: 标准分级，适合大多数用途
+                                        # 40-50: 精细分级，适合科学发表
+
+standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案
+                                        # 可选值见 [colors] 部分的 available_cmaps
+                                        # "hot_r_custom": 热图反向配色，科学标准，优化PDF显示
+                                        # 不同配色方案适合不同的显示媒介和用途
 
 # 标准图样式子分组
 # --- 百分位数线配置 ---
@@ -432,26 +470,47 @@ alpha = 0.9                             # 均值线透明度 (0.0-1.0)
 # ========================================
 [temporal]
 # 绘制PSD值随时间演化曲线的特定周期（秒）
-plot_periods = [0.1, 1.0, 8.0, 20.0]
+# 选择具有代表性的周期点来观察噪声的时间变化
+temporal_plot_periods = [0.1, 1.0, 10.0]         # 常用周期：（必须用带小数位的浮点数表示）
+                                                 # 0.1秒: 高频噪声（如人文噪声）
+                                                 # 1.0秒: 地脉动主频段
+                                                 # 8.0秒: 地脉动双峰结构
+                                                 # 20.0秒: 长周期背景噪声
+
 # X轴（时间轴）刻度标签的时间格式
-time_format_x = "%H:%M"
-# 是否在图上显示网格
-grid = true
-# PPSD图的颜色映射方案。科技报告配色：白色背景蓝色渐变，经典专业
-cmap = "Blues"
+time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftime格式）
+                                        # "%Y-%m-%d": 年-月-日 (2023-01-15)
+                                        # "%H:%M": 时:分 (14:30)
+                                        # "%Y%m%d %H:%M": 年月日 时:分 (20230115 14:30)
+
+# 线条颜色 (可选，为多个周期的列表或单一颜色)
+# temporal_color = ["blue", "red", "green", "orange"]  # 为每个周期指定颜色
+# 线条样式 (可选)
+temporal_linestyle = "--"              # 所有曲线使用相同样式
+                                       # "-": 实线，"--": 虚线，"-.": 点划线，":": 点线
+temporal_linewidth = 0.5               # 所有曲线使用相同样式，加粗线条
+
+# 线条标记 (可选)
+temporal_marker = "o"                  # 数据点标记样式
+temporal_marker_size = 2             # 数据点标记大小（较大的标记更明显）
 
 # ========================================
 # 6. 频谱图配置
 # ========================================
 [spectrogram]
 # 颜色图的振幅限制 [min_db, max_db]
-clim = [-180, -100]
-# Y轴（时间轴）刻度标签的时间格式
-time_format_x = "%Y-%m-%d"
+clim = [-200, -50]                     # PSD显示范围（dB）
+                                        # [-180, -100]: 适合大多数地震台站
+                                        # 根据台站噪声水平调整范围以优化对比度
+
+# X轴（时间轴）刻度标签的时间格式
+time_format_x = "%H:%M"                 # 频谱图时间轴格式
+                                        # 建议使用较详细的格式显示日期和时间
+                                        # 可根据数据时间跨度调整精度
+
 # 是否在图上显示网格
-grid = true
-# PPSD图的颜色映射方案。自定义配色：Ocean反向配色，浅色到深色，优雅渐变
-cmap = "ocean_r_custom"
+spectrogram_grid = true                 # true: 显示网格，便于读取时间和频率
+                                        # false: 不显示网格，突出频谱变化
 
 # ========================================
 # 7. 颜色配置
@@ -618,13 +677,70 @@ matplotlib_version = ">=3.5.0"          # Matplotlib库最低版本要求
 **众数和均值线配置 ([standard.mode], [standard.mean])**:
 -   类似的线条样式配置，控制众数和均值PSD曲线的显示
 
-#### G. 分组结构优势
+#### H. 时间演化图配置分组 ([temporal])
+
+**时间演化图基本参数**:
+-   **`temporal_plot_periods`**: 绘制时间演化曲线的特定周期列表（秒），选择具有代表性的周期点
+-   **`time_format_x`**: X轴时间标签格式，使用Python strftime格式
+
+**线条样式控制参数**:
+-   **`temporal_linestyle`**: 线条样式，支持 "-"（实线）、"--"（虚线）、"-."（点划线）、":"（点线）
+-   **`temporal_linewidth`**: 线条宽度，浮点数值，控制所有时间演化曲线的线条粗细
+-   **`temporal_marker`**: 数据点标记样式，如 "o"（圆圈）、"s"（方块）、"^"（三角）等
+-   **`temporal_marker_size`**: 数据点标记大小，数值越大标记越明显
+
+**参数详解示例**:
+```toml
+[temporal]
+temporal_plot_periods = [0.1, 1.0, 10.0]    # 三个代表性周期点
+temporal_linestyle = "--"                    # 虚线样式
+temporal_linewidth = 0.5                     # 细线条
+temporal_marker = "o"                        # 圆形标记
+temporal_marker_size = 2                     # 小尺寸标记
+```
+
+**应用说明**:
+- **temporal_linewidth**: 较小值（如0.5）产生细线条，适合密集数据；较大值（如2.0）产生粗线条，适合突出显示
+- **temporal_marker_size**: 较小值（如2）产生精细标记，适合高密度数据点；较大值（如6）产生明显标记，便于观察稀疏数据
+
+#### I. 分组结构优势
 
 1. **逻辑清晰**: 相关参数归类到同一分组，便于理解和维护
 2. **参数关联**: 解决了百分位数线和皮特森曲线等关联参数的管理问题
 3. **扩展性**: 易于添加新的绘图类型和样式选项
 4. **配置验证**: 分组结构便于参数验证和默认值管理
 5. **向前兼容**: 保持与旧版配置文件的兼容性
+
+#### J. 颜色配置分组 ([colors])
+
+**自定义配色方案**:
+-   **`available_cmaps`**: 可选的自定义配色方案列表，包含经过优化的颜色映射
+-   主要配色方案说明：
+    -   `"viridis_custom"`: Viridis配色（0-80%范围），增强对比度
+    -   `"ocean_custom"`: Ocean水色配色（20-90%范围），突出中高值
+    -   `"ocean_r_custom"`: Ocean反向配色（0-60%范围），浅色背景
+    -   `"hot_r_custom"`: Hot反向配色（0-60%范围），冷色调强化
+    -   `"plasma_custom"`: Plasma配色（10-85%范围），高对比度
+    -   `"CMRmap_r_custom"`: CMRmap反向配色（0-80%范围），科学标准
+
+**预设颜色方案 ([colors.presets])**:
+-   统一的颜色管理，包含primary、secondary、accent等预定义颜色
+-   便于在不同绘图类型间保持一致的配色风格
+
+#### K. 高级设置分组 ([advanced])
+
+**系统设置**:
+-   **`matplotlib_backend`**: 指定matplotlib后端，通常使用"Agg"非交互式后端
+-   **`font_family`**: 字体设置，支持中文显示（如"WenQuanYi Micro Hei"）
+-   **`enable_chinese_fonts`**: 是否启用中文字体支持
+
+**性能优化**:
+-   **`memory_optimization`**: 内存优化开关
+-   **`parallel_processing`**: 并行处理功能（实验性）
+
+**兼容性检查 ([advanced.compatibility])**:
+-   **`obspy_version`**: ObsPy最低版本要求
+-   **`numpy_version`**: NumPy最低版本要求
 
 对于在 `config_plot.toml` 和 `config.toml` 中都存在的通用顶层参数，其详细解释请参考章节 **3.1.1.1 `config.toml` 参数详解**。
 
