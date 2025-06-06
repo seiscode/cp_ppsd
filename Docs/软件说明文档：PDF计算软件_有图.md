@@ -26,6 +26,14 @@
 
 `run_cp_ppsd.py` 脚本遵循以下基本工作流程来处理地震数据并生成PPSD结果：
 
+**使用方法：**
+
+​    `python run_cp_ppsd.py config.toml `                                              # 仅计算
+
+​    `python run_cp_ppsd.py config_plot.toml `                                      # 仅绘图
+
+​    `python run_cp_ppsd.py input/config.toml input/config_plot.toml `  # 计算+绘图
+
 1.  **加载配置与识别操作意图**:
     *   脚本启动时，会读取用户在命令行中指定的一个或多个TOML配置文件。
     *   **操作意图的确定**: 脚本的主要操作模式根据传递的配置文件名或类型进行推断：
@@ -59,13 +67,13 @@
 
 这个流程允许用户通过选择和组合不同的配置文件来灵活控制计算和绘图任务。
 
-## 2.1 实际应用案例展示
+## 2.1 PDF案例展示（非本软件出图）
 
-为了帮助用户更好地理解软件的实际分析能力和输出效果，以下展示了基于真实数据的PPSD分析案例：
+为了帮助用户更好地理解软件的实际分析能力和输出效果，以下展示了基于真实数据的PDF分析案例：
 
 ![多通道PPSD综合分析](./pics/comprehensive_multi_channel_analysis.jpg)
 
-*图2.2：多通道PPSD综合分析案例图。该图展示了同一台站不同通道（BHE、BHN、BHZ）的PPSD分析结果对比，包括标准PPSD图、时间演化特征以及频谱特性。通过多通道对比分析可以评估台站的整体性能、识别方向性噪声源以及验证仪器工作状态的一致性，为地震台站的综合评估提供全面的技术依据。*
+*图2.2：多通道PDF综合分析案例图。该图展示了同一台站不同通道（BHE、BHN、BHZ）的PDF分析结果对比，包括标准PDF图、时间演化特征以及频谱特性。通过多通道对比分析可以评估台站的整体性能、识别方向性噪声源以及验证仪器工作状态的一致性，为地震台站的综合评估提供全面的技术依据。*
 
 ![长期噪声监测趋势分析](./pics/long_term_noise_monitoring.jpg)
 
@@ -2124,6 +2132,180 @@ period_limits = [0.1, 100]  # 限制PPSD计算的周期/频率范围，仅分析
     *   **地脉动峰 (Microseismic Peaks)**: 在0.1-1 Hz (1-10秒周期) 范围内通常能观察到由全球海浪活动引起的地脉动双峰结构。检查这些峰的幅度和形态是否合理。
     *   **人为噪声**: 在较高频率（>1 Hz）注意是否存在窄带的、稳定的谱峰，这通常指示特定频率的人为噪声源（如电力线、机械振动）。
     *   **长周期噪声**: 在较长周期（>10-20秒）检查噪声水平是否符合预期，有无异常抬升。
+    
+### 7.5 按月计算PPSD实践案例
+
+在实际的长期地震台站噪声监测中，经常需要对大量历史数据进行月度分析，以观察噪声水平的季节性变化、年际趋势和异常事件的影响。按月组织数据和配置文件可以大大提高处理效率和结果管理的便利性。
+
+#### A. 数据组织策略
+
+**目录结构规划**：
+```
+项目根目录/
+├── data_01/          # 1月份原始数据
+├── data_02/          # 2月份原始数据
+├── data_03/          # 3月份原始数据
+...
+├── data_12/          # 12月份原始数据
+├── input/
+│   ├── config_01.toml      # 1月份计算配置
+│   ├── config_02.toml      # 2月份计算配置
+│   ...
+│   ├── config_12.toml      # 12月份计算配置
+│   ├── config_plot_01.toml # 1月份绘图配置
+│   ├── config_plot_02.toml # 2月份绘图配置
+│   ...
+│   ├── config_plot_12.toml # 12月份绘图配置
+│   ├── BJ.XML              # 仪器响应文件（共用）
+│   └── BJ.dataless         # 仪器响应文件（共用）
+├── output/
+│   ├── npz_01/       # 1月份NPZ结果
+│   ├── npz_02/       # 2月份NPZ结果
+│   ...
+│   ├── npz_12/       # 12月份NPZ结果
+│   ├── plots_01/     # 1月份图像结果
+│   ├── plots_02/     # 2月份图像结果
+│   ...
+│   └── plots_12/     # 12月份图像结果
+```
+
+#### B. 配置文件示例
+
+**1月份计算配置文件 (`input/config_01.toml`)**：
+```toml
+[args]
+mseed_pattern = "./data_01/"                # 1月份数据目录
+inventory_path = "./input/BJ.dataless"      # 仪器响应文件（共用）
+output_dir = "./output/npz_01"              # 1月份NPZ输出目录
+
+# 其他PPSD计算参数保持一致
+ppsd_length = 3600
+overlap = 0.5
+period_limits = [0.01, 100]
+skip_on_gaps = false
+db_bins = [-200, -50, 0.25]
+
+# 时间信息将自动从MiniSEED数据中提取
+# 确保data_01目录中只包含1月份的数据
+```
+
+**1月份绘图配置文件 (`input/config_plot_01.toml`)**：
+```toml
+[paths]
+input_npz_dir = "./output/npz_01/"          # 1月份NPZ数据目录
+output_dir = "./output/plots_01/"           # 1月份图像输出目录
+inventory_path = "./input/BJ.dataless"      # 仪器响应文件（共用）
+
+[plotting]
+plot_type = ["standard", "temporal", "spectrogram"]
+npz_merge_strategy = true                   # 合并同台站同通道的数据
+
+[standard]
+show_histogram = true
+show_percentiles = true
+show_noise_models = true
+# ... 其他标准图参数
+
+[temporal]
+temporal_plot_periods = [0.1, 1.0, 10.0]
+time_format_x = "%Y-%m-%d"
+# ... 其他temporal参数
+
+[spectrogram]
+clim = [-200, -50]
+time_format_x = "%H:%M"
+# ... 其他spectrogram参数
+```
+
+**2月份配置文件 (`input/config_02.toml` 和 `input/config_plot_02.toml`)**：
+只需要修改路径相关参数：
+```toml
+# config_02.toml中
+mseed_pattern = "./data_02/"
+output_dir = "./output/npz_02"
+
+# config_plot_02.toml中的 [paths] 部分
+input_npz_dir = "./output/npz_02/"
+output_dir = "./output/plots_02/"
+```
+
+#### C. 批量执行策略
+
+**逐月处理命令**：
+```bash
+# 1月份数据处理
+python run_cp_ppsd.py input/config_01.toml input/config_plot_01.toml
+
+# 2月份数据处理
+python run_cp_ppsd.py input/config_02.toml input/config_plot_02.toml
+
+# 3月份数据处理
+python run_cp_ppsd.py input/config_03.toml input/config_plot_03.toml
+
+# ... 依次类推到12月份
+python run_cp_ppsd.py input/config_12.toml input/config_plot_12.toml
+```
+
+**自动化脚本示例**：
+可以创建一个简单的bash脚本来批量处理：
+```bash
+#!/bin/bash
+# 文件名: process_monthly.sh
+
+for month in {01..12}; do
+    echo "处理第${month}月数据..."
+    
+    # 检查数据目录是否存在
+    if [ -d "data_${month}" ]; then
+        python run_cp_ppsd.py input/config_${month}.toml input/config_plot_${month}.toml
+        echo "第${month}月处理完成"
+    else
+        echo "警告: data_${month} 目录不存在，跳过"
+    fi
+    
+    echo "---"
+done
+
+echo "所有月份处理完成！"
+```
+
+#### D. 优势与应用场景
+
+**主要优势**：
+1. **组织清晰**: 每月的数据、配置和结果完全分离，便于管理
+2. **并行处理**: 可以在不同机器或时间段独立处理各月数据
+3. **灵活性**: 可以针对特定月份调整参数或重新处理
+4. **故障隔离**: 某个月的处理失败不影响其他月份
+5. **存储优化**: 可以选择性保留或归档特定月份的结果
+
+**适用场景**：
+- **年度噪声评估**: 系统分析全年12个月的噪声变化规律
+- **季节性研究**: 比较不同季节（春夏秋冬）的噪声特征差异
+- **长期趋势监测**: 多年数据的逐月对比，识别噪声水平变化趋势
+- **异常事件分析**: 快速定位和分析特定月份的异常噪声事件
+- **台站评估报告**: 为台站年度评估提供详细的月度噪声报告
+
+#### E. 结果分析与对比
+
+处理完成后，可以进行多维度的月度对比分析：
+
+**1. 噪声水平月际对比**：
+- 提取每月的噪声统计数据（如10th、50th、90th百分位数）
+- 绘制月度噪声水平变化曲线
+- 识别噪声的季节性模式
+
+**2. 频谱特征分析**：
+- 比较各月地脉动峰的幅度和频率变化
+- 分析人为噪声的月际差异（如冬季供暖、夏季空调）
+- 观察极端天气事件对噪声的影响
+
+**3. 异常识别**：
+
+- 快速识别异常噪声水平的月份
+- 分析异常的可能原因（仪器故障、环境变化、人为干扰等）
+- 为台站维护和优化提供数据支持
+
+这种按月组织的策略特别适合需要长期、系统性噪声监测的应用场景，能够大大提高数据处理的效率和结果分析的深度。
 
 ## 8. 参考文档
 

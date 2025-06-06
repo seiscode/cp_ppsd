@@ -29,7 +29,7 @@ input_npz_dir = "./output/npz/"         # 指定存放NPZ文件的目录路径
                                         # 支持相对路径（相对于脚本执行目录）和绝对路径
                                         # 目录必须存在且包含有效的PPSD NPZ文件
 
-inventory_path = "./input/BJ.XML"       # 仪器响应文件路径 (可能需要用于绘图时的元数据，如台站名)
+inventory_path = "./input/BJ.dataless"  # 仪器响应文件路径 (可能需要用于绘图时的元数据，如台站名)
                                         # 支持格式：StationXML (.xml) 或 dataless SEED (.dataless)
                                         # 主要用于获取台站信息和SEED ID验证
 
