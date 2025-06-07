@@ -70,11 +70,29 @@ def create_custom_colormaps() -> Dict[str, Any]:
         'plasma_custom', plasma_colors, N=256
     )
 
-    # 6. CMRmap反向配色方案 (截取0.0-0.8部分，科学标准，优化PDF显示)
-    cmrmap_r_scm = cm.get_cmap('CMRmap_r')
-    cmrmap_r_colors = cmrmap_r_scm(np.linspace(0.0, 0.8, 256))
-    custom_cmaps['CMRmap_r_custom'] = LinearSegmentedColormap.from_list(
-        'CMRmap_r_custom', cmrmap_r_colors, N=256
+    # 6. 白到红色配色方案 (简化中间色，快速反应数据变化，优化PDF显示)
+    white_to_red_colors = [
+        '#FFFFFF',  # 白色 (起点，极少占比)
+        '#FFD700',  # 金色 (快速过渡)
+        '#FFA500',  # 标准橘色 (中等值)
+        '#FF4500',  # 橘红色 (高值)
+        '#FF0000',  # 纯红色 (很高值)
+        '#CC0000'   # 深红色 (终点，最高值)
+    ]
+    custom_cmaps['yellow_r_custom'] = LinearSegmentedColormap.from_list(
+        'yellow_r_custom', white_to_red_colors, N=256
+    )
+
+    # 7. 浅蓝色配色方案 (简化为5色，从白色快速变深，适合海洋数据可视化)
+    light_blue_colors = [
+        '#FFFFFF',  # 白色 (起点，极少占比)
+        '#42A5F5',  # 材料蓝 (快速过渡)
+        '#1976D2',  # 深蓝 (中等值)
+        '#0D47A1',  # 深蓝色 (高值)
+        '#001540'   # 深夜蓝 (终点，最高值)
+    ]
+    custom_cmaps['light_blue_custom'] = LinearSegmentedColormap.from_list(
+        'light_blue_custom', light_blue_colors, N=256
     )
 
     return custom_cmaps
@@ -107,7 +125,8 @@ def list_custom_colormaps() -> Dict[str, str]:
         'ocean_r_custom': 'Ocean反向配色（0-60%范围）- 浅色背景，强化PDF曲线对比度',
         'hot_r_custom': 'Hot反向配色（0-60%范围）- 浅色背景，冷色调强化PDF可视化',
         'plasma_custom': 'Plasma配色（10-85%范围）- 高对比度，突出PDF峰值',
-        'CMRmap_r_custom': 'CMRmap反向配色（0-80%范围）- 科学标准，优化PDF显示'
+        'yellow_r_custom': '白到红色配色（简化中间色，快速反应数据变化）- 暖色调，优化PDF显示',
+        'light_blue_custom': '浅蓝色配色（简化为5色，从白色快速变深）- 冷色调，适合海洋数据'
     }
     return descriptions
 

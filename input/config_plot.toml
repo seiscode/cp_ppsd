@@ -65,7 +65,7 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 plot_type = [ "standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
+npz_merge_strategy = true                # 合并策略控制如何处理多个NPZ文件:
                                           # true: 自动按SEED ID分组并使用add_npz()方法合并，
                                           #       适用于同一台站不同时间段的数据，可显示长期趋势
                                           # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
@@ -79,7 +79,7 @@ show_histogram = true                   # 是否绘制2D直方图本身（PPSD�
                                         # true: 显示彩色的概率密度分布
                                         # false: 仅显示统计线条和模型曲线
 
-show_percentiles = true                # 是否显示百分位数线
+show_percentiles = false                # 是否显示百分位数线
                                         # true: 在图上绘制指定百分位数的PSD曲线
                                         # 具体百分位数在 [standard.percentiles] 部分配置
 
@@ -100,11 +100,11 @@ standard_grid = true                    # 是否在直方图上显示网格线
                                         # true: 显示网格，便于读取数值
                                         # false: 不显示网格，图像更简洁
 
-period_lim = [0.02, 50.0]               # PPSD标准图绘图显示的周期范围（秒）
+period_lim = [0.05, 50.0]               # PPSD标准图绘图显示的周期范围（秒）
                                         # 如果 xaxis_frequency=true，此处应为频率范围（Hz）
                                         # 建议根据分析目标调整：微震分析用较短周期，长周期噪声分析用较长周期
 
-xaxis_frequency = true                # PPSD标准图X轴显示模式
+xaxis_frequency = true                  # PPSD标准图X轴显示模式
                                         # false: 显示周期（秒），地震学传统表示法
                                         # true: 显示频率（Hz），工程学常用表示法
 
@@ -120,9 +120,10 @@ cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别�
                                         # 25: 标准分级，适合大多数用途
                                         # 40-50: 精细分级，适合科学发表
 
-standard_cmap = "hot_r_custom"          # PPSD图的颜色映射方案
+standard_cmap = "yellow_r_custom"          # PPSD图的颜色映射方案
                                         # 可选值见 [colors] 部分的 available_cmaps
-                                        # "hot_r_custom": 热图反向配色，科学标准，优化PDF显示
+                                        # "yellow_r_custom": 白到红色配色，简化中间色，快速反应数据变化
+                                        # "light_blue_custom": 浅蓝色配色，简化为5色，从白色快速变深
                                         # 不同配色方案适合不同的显示媒介和用途
 
 # 标准图样式子分组
@@ -181,7 +182,7 @@ linewidth = 1.0                         # 众数线宽度（磅）
 linestyle = "-"                         # 众数线样式
                                         # 实线强调其作为主要统计量的重要性
 
-alpha = 0.9                             # 众数线透明度 (0.0-1.0)
+alpha = 0.8                             # 众数线透明度 (0.0-1.0)
                                         # 高透明度确保众数线清晰可见
 
 # --- 均值线配置 ---
@@ -250,7 +251,8 @@ spectrogram_grid = true                 # true: 显示网格，便于读取时�
                                         # false: 不显示网格，突出频谱变化
 
 # PPSD图的颜色映射方案
-spectrogram_cmap = "ocean_r_custom"     # 频谱图专用配色方案
+spectrogram_cmap = "light_blue_custom"     # 频谱图专用配色方案
+                                        # "light_blue_custom": 浅蓝色配色，简化为5色，从白色快速变深
                                         # "ocean_r_custom": Ocean反向配色，浅色到深色，优雅渐变
                                         # 不同于标准图的配色，适合频谱数据的时间变化显示
 
@@ -266,7 +268,8 @@ available_cmaps = [
     "ocean_r_custom",      # Ocean反向配色（0-60%范围）- 浅色背景，强化PDF曲线对比度
     "hot_r_custom",        # Hot反向配色（0-60%范围）- 浅色背景，冷色调强化PDF可视化
     "plasma_custom",       # Plasma配色（10-85%范围）- 高对比度，突出PDF峰值
-    "CMRmap_r_custom"      # CMRmap反向配色（0-80%范围）- 科学标准，优化PDF显示
+    "yellow_r_custom",     # 白到红色配色（简化中间色，快速反应数据变化）- 暖色调，优化PDF显示
+    "light_blue_custom"    # 浅蓝色配色（简化为5色，从白色快速变深）- 冷色调，适合海洋数据
 ]
 
 # 线条颜色预设
