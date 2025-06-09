@@ -65,7 +65,7 @@ output_filename_pattern = "{plot_type}_{start_datetime}_{end_datetime}_{network}
 plot_type = [ "standard", "temporal", "spectrogram"]
 
 # --- NPZ合并策略 ---
-npz_merge_strategy = true                # 合并策略控制如何处理多个NPZ文件:
+npz_merge_strategy = true                 # 合并策略控制如何处理多个NPZ文件:
                                           # true: 自动按SEED ID分组并使用add_npz()方法合并，
                                           #       适用于同一台站不同时间段的数据，可显示长期趋势
                                           # false: 每个NPZ文件单独绘图，适用于独立分析每个时间段
@@ -100,18 +100,19 @@ standard_grid = true                    # 是否在直方图上显示网格线
                                         # true: 显示网格，便于读取数值
                                         # false: 不显示网格，图像更简洁
 
-period_lim = [0.05, 50.0]               # PPSD标准图绘图显示的周期范围（秒）
+xaxis_frequency = false                 # PPSD标准图X轴显示模式
+                                        # false: 显示周期（秒），地震学传统表示法
+                                        # true: 显示频率（Hz），工程学常用表示法
+
+period_lim = [0.05, 40.0]               # 如果 xaxis_frequency=false，此处应为周期范围（秒）
                                         # 如果 xaxis_frequency=true，此处应为频率范围（Hz）
                                         # 建议根据分析目标调整：微震分析用较短周期，长周期噪声分析用较长周期
 
-xaxis_frequency = true                  # PPSD标准图X轴显示模式
-                                        # false: 显示周期（秒），地震学传统表示法
-                                        # true: 显示频率（Hz），工程学常用表示法
 
 cumulative_plot = false                 # 是否显示累积直方图模式
                                         # false: 标准概率密度图（推荐）
                                         # true: 累积概率图，显示低于某PSD值的概率分布
-                                        # show_histogram = true 时，cumulative_plot = true 会绘制累积直方图
+                                        # 仅在 show_histogram = true 时生效
 
 cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别数量
                                         # 仅在 cumulative_plot=true 时生效
@@ -120,10 +121,8 @@ cumulative_number_of_colors = 25        # 累积直方图的离散颜色级别�
                                         # 25: 标准分级，适合大多数用途
                                         # 40-50: 精细分级，适合科学发表
 
-standard_cmap = "yellow_r_custom"          # PPSD图的颜色映射方案
+standard_cmap = "ocean_depth_custom"    # PPSD图的颜色映射方案
                                         # 可选值见 [colors] 部分的 available_cmaps
-                                        # "yellow_r_custom": 白到红色配色，简化中间色，快速反应数据变化
-                                        # "light_blue_custom": 浅蓝色配色，简化为5色，从白色快速变深
                                         # 不同配色方案适合不同的显示媒介和用途
 
 # 标准图样式子分组
@@ -207,11 +206,11 @@ alpha = 0.6                             # 均值线透明度 (0.0-1.0)
 [temporal]
 # 绘制PSD值随时间演化曲线的特定周期（秒）
 # 选择具有代表性的周期点来观察噪声的时间变化
-temporal_plot_periods = [0.1, 1.0, 10.0]         # 常用周期：（必须用带小数位的浮点数表示）
-                                                 # 0.1秒: 高频噪声（如人文噪声）
-                                                 # 1.0秒: 地脉动主频段
-                                                 # 8.0秒: 地脉动双峰结构
-                                                 # 20.0秒: 长周期背景噪声
+temporal_plot_periods = [0.1, 1.0, 10.0]    # 常用周期：（必须用带小数位的浮点数表示）
+                                            # 0.1秒: 高频噪声（如人文噪声）
+                                            # 1.0秒: 地脉动主频段
+                                            # 8.0秒: 地脉动双峰结构
+                                            # 20.0秒: 长周期背景噪声
 
 # X轴（时间轴）刻度标签的时间格式
 time_format_x = "%Y-%m-%d"              # 时间格式字符串（Python strftime格式）
@@ -251,8 +250,8 @@ spectrogram_grid = true                 # true: 显示网格，便于读取时�
                                         # false: 不显示网格，突出频谱变化
 
 # PPSD图的颜色映射方案
-spectrogram_cmap = "light_blue_custom"     # 频谱图专用配色方案
-                                        # "light_blue_custom": 浅蓝色配色，简化为5色，从白色快速变深
+spectrogram_cmap = "science_custom"     # 频谱图专用配色方案
+                                        # "blue_r_custom": 蓝色反向配色，简化为5色，从白色快速变深
                                         # "ocean_r_custom": Ocean反向配色，浅色到深色，优雅渐变
                                         # 不同于标准图的配色，适合频谱数据的时间变化显示
 
@@ -263,13 +262,25 @@ spectrogram_cmap = "light_blue_custom"     # 频谱图专用配色方案
 # 自定义配色方案列表
 # 可选的配色方案，用于不同类型的图像（已优化为增强对比度范围，突出PDF曲线特征）
 available_cmaps = [
-    "viridis_custom",      # Viridis配色（0-80%范围）- 增强对比度，突出PDF曲线
-    "ocean_custom",        # Ocean水色配色（20-90%范围）- 突出中高值，增强PDF对比度
-    "ocean_r_custom",      # Ocean反向配色（0-60%范围）- 浅色背景，强化PDF曲线对比度
-    "hot_r_custom",        # Hot反向配色（0-60%范围）- 浅色背景，冷色调强化PDF可视化
-    "plasma_custom",       # Plasma配色（10-85%范围）- 高对比度，突出PDF峰值
-    "yellow_r_custom",     # 白到红色配色（简化中间色，快速反应数据变化）- 暖色调，优化PDF显示
-    "light_blue_custom"    # 浅蓝色配色（简化为5色，从白色快速变深）- 冷色调，适合海洋数据
+    "viridis_custom",            # Viridis配色（0-80%范围）- 增强对比度，突出PDF曲线
+    "ocean_custom",              # Ocean水色配色（20-90%范围）- 突出中高值，增强PDF对比度
+    "ocean_r_custom",            # Ocean反向配色（0-60%范围）- 浅色背景，强化PDF曲线对比度
+    "hot_r_custom",              # Hot反向配色（0-60%范围）- 浅色背景，冷色调强化PDF可视化
+    "plasma_custom",             # Plasma配色（10-85%范围）- 高对比度，突出PDF峰值
+    "yellow_r_custom",           # 白到红色配色（简化中间色，快速反应数据变化）- 暖色调，优化PDF显示
+    "blue_r_custom",             # 蓝色反向配色（简化为5色，从白色快速变深）- 冷色调，适合海洋数据
+    "pqlx_custom",               # PQLX配色（钢蓝过渡）- 白色到彩虹色谱，钢蓝柔和过渡，适合地震学PPSD标准显示
+    "mountain_sunset_r_custom",  # 山峦日落暖色配色（4色）- 白色到深红的纯暖色调过渡，删除蓝色元素
+    "loyel_2024_custom",         # Loyel 2024高级感配色（6色）- 白色到深蓝黑的专业渐变，包含金黄、橙色、紫红的丰富层次
+    "fatpanda_custom",           # 胖熊猫配色（6色）- 白色到深蓝的绿蓝渐变，包含黄绿、中绿、深绿的丰富绿色层次
+    "premium_contrast_custom",   # 高级反差配色（6色）- 红黄蓝绿经典配色的高级版本，金黄、海绿、皇家蓝、深红的强烈对比
+    "autumn_custom",             # 秋天配色（7色）- 白色到深蓝黑的秋季色彩，包含黄色、暗金黄、森林绿、钢蓝的丰富层次
+    "aurora_premium_custom",     # 北极光高级配色（8色）- 白色最低值，天蓝到深红过渡，强对比度突出数据
+    "ocean_depth_custom",        # 海洋深度配色（8色）- 白色占比极小，海面到深海的自然层次，突出数据显示
+    "forest_seasons_custom",     # 森林四季配色（8色）- 春晨薄雾到冬日深红，季节变化的自然色彩层次
+    "desert_day_custom",         # 沙漠日月配色（8色）- 黎明薄雾到夜幕深红，沙漠昼夜变化的自然色彩
+    "strong_contrast_custom",    # 和谐强对比配色（8色）- 天空蓝到紫色，强对比度与自然过渡并存
+    "science_custom"             # 专业科学配色（8色）- 白色背景期刊级可视化，专业蓝红渐变标准
 ]
 
 # 线条颜色预设
