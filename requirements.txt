@@ -1,8 +1,10 @@
 # PPSD 批量处理与可视化工具依赖包
-# 安装方法：pip install -r requirements.txt
+# 安装方法：
+#          conda install jinja2 pygments -c conda-forge
+#          pip install -r requirements.txt
 
 # 核心依赖
-obspy>=1.4.0              # 地震学数据处理库
+obspy>=1.4.1              # 地震学数据处理库
 toml>=0.10.2              # TOML配置文件解析
 matplotlib>=3.5.0         # 绘图库
 numpy>=1.21.0             # 数值计算库
@@ -25,5 +27,5 @@ tqdm>=4.62.0              # 进度条显示
 # 6. typing 是 Python 3.5+ 的内置模块（Python 3.8+ 推荐使用）
 
 # 系统要求：
-# Python >= 3.8
+# Python >= 3.12
 # 推荐使用 conda 环境管理依赖 

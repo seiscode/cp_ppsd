@@ -270,33 +270,9 @@ class PPSDProcessor:
         if not pattern:
             # 使用默认命名规则
             if plot_type:
-                return f"{plot_type}_{
-                    metadata.get(
-                        'network',
-                        'XX')}.{
-                    metadata.get(
-                        'station',
-                        'XXXX')}.{
-                    metadata.get(
-                        'location',
-                        '')}.{
-                            metadata.get(
-                                'channel',
-                                'XXX')}.png"
+                return f"{plot_type}_{metadata.get('network', 'XX')}.{metadata.get('station', 'XXXX')}.{metadata.get('location', '')}.{metadata.get('channel', 'XXX')}.png"
             else:
-                return f"PPSD_{
-                    metadata.get(
-                        'network',
-                        'XX')}.{
-                    metadata.get(
-                        'station',
-                        'XXXX')}.{
-                    metadata.get(
-                        'location',
-                        '')}.{
-                            metadata.get(
-                                'channel',
-                                'XXX')}.npz"
+                return f"PPSD_{metadata.get('network', 'XX')}.{metadata.get('station', 'XXXX')}.{metadata.get('location', '')}.{metadata.get('channel', 'XXX')}.npz"
 
         # 使用数据开始时间或当前时间
         if data_starttime is not None:

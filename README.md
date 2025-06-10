@@ -29,54 +29,69 @@
 - **中文字体支持**：自动检测和配置中文字体
 - **高质量输出**：300 DPI，适合印刷质量
 
-## 测试与示例
-
-### tests/ 目录
-包含丰富的测试程序和使用示例：
-
-- **基础功能测试**：验证PPSD计算和绘图核心功能
-- **配置示例程序**：演示各种配置文件的使用方法
-- **NPZ合并演示**：`example_merge_npz.py` - 展示如何正确使用ObsPy的PPSD.add_npz()方法合并NPZ文件
-- **特殊处理测试**：水听器、环形激光器等特殊仪器的处理验证
-- **配色方案工具**：多种配色方案的对比和选择工具
-- **数据分析工具**：NPZ文件内容分析、数据质量检查等
-
-### 运行测试示例
-```bash
-# 运行NPZ合并演示
-python tests/example_merge_npz.py
-
-# 运行配色方案对比
-python tests/custom_colormap_comparison.py
-
-# 运行所有测试
-python tests/run_all_tests.py
-```
-
 ## 快速开始
 
 ### 1. 环境准备
+
+#### 方法1：只用conda安装（推荐）
 
 ```bash
 # 克隆项目
 git clone <repository_url>
 cd cp_ppsd
 
-# 推荐使用conda环境
-conda create -n seis python=3.8
+# 方式A：创建environment.yml文件（可选，environment.yml已提供）
+# 先创建environment.yml文件，内容如下：
+cat > environment.yml << EOF
+name: seis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - obspy>=1.4.1
+  - matplotlib>=3.5.0
+  - numpy>=1.21.0
+  - scipy>=1.7.0
+  - toml>=0.10.2
+  - tqdm>=4.62.0
+EOF
+
+# 然后创建并激活环境
+conda env create -f environment.yml
 conda activate seis
 
-# 安装依赖
+# 方式B：一条命令创建环境并安装包
+conda create -n seis python=3.12 obspy matplotlib numpy scipy toml tqdm -c conda-forge -y
+conda activate seis
+
+# 方式C：分步安装
+conda create -n seis python=3.12 -y
+conda activate seis
+conda install -c conda-forge obspy matplotlib numpy scipy toml tqdm -y
+```
+
+#### 方法2：混合安装（兼容性更好）
+
+```bash
+# 创建conda环境
+conda create -n seis python=3.12 -y
+conda activate seis
+
+# 使用conda安装依赖
+conda install jinja2 pygments -c conda-forge -y
+
+# 使用pip安装剩余依赖
 pip install -r requirements.txt
 
-# 或者开发模式安装
+# 开发模式安装项目
 pip install -e .
 ```
 
 ### 2. 系统要求
 
-- **Python**: >= 3.8
-- **操作系统**: Linux, macOS, Windows
+- **Python**: >= 3.12
+- **操作系统**: Linux, macOS(未测试), Windows(未测试)
 - **推荐环境**: conda环境管理
 - **中文字体**: 自动安装或手动安装中文字体包
 
@@ -337,10 +352,7 @@ cp_ppsd/
 ├── requirements.txt        # Python依赖包
 ├── README.md              # 项目说明文档
 ├── README_plot_psd.md     # PSD分析工具说明
-└── cursor_project_rules/   # 项目知识库
-    ├── 产品说明文档：PDF计算软件.md
-    ├── run_plot_psd使用说明.md
-    └── ...
+└──  ...
 ```
 
 ## 应用场景
@@ -457,8 +469,8 @@ period_limits = [0.1, 100]  # 限制周期范围
 
 ### 2025年6月7日 - 配色方案重大更新
 
-#### 🎨 新增7个专业配色方案
-1. **`science_custom`** ⭐ - 专业科学配色，白色背景，期刊级可视化标准
+#### 新增7个专业配色方案
+1. **`science_custom`** - 专业科学配色，白色背景，期刊级可视化标准
 2. **`strong_contrast_custom`** - 和谐强对比配色，强对比度与自然过渡并存
 3. **`forest_seasons_custom`** - 森林四季配色，春晨薄雾到冬日深红的季节变化
 4. **`desert_day_custom`** - 沙漠日月配色，黎明薄雾到夜幕深红的昼夜变化
@@ -471,17 +483,17 @@ period_limits = [0.1, 100]  # 限制周期范围
 - **标准化比例**: 所有8色方案采用统一比例分布 (0.00, 0.05, 0.15, 0.35, 0.50, 0.65, 0.80, 1.00)
 - **默认配色调整**: 标准图现在默认使用 `pqlx_custom` 配色
 
-#### 📝 文档和配置更新
+#### 文档和配置更新
 - **配置文件**: 更新 `config_plot.toml` 中的 `available_cmaps` 列表
 - **知识库**: 完善 `配色方案配置说明.md` 文档
 - **使用指南**: 新增配色方案选择指南和最佳实践建议
 
-#### 🧹 代码质量改进
+#### 代码质量改进
 - **移除废弃方案**: 删除 `fatpanda_v2_custom` 和 `blue_yellow_premium_custom`
 - **代码优化**: 添加 `.flake8` 配置，提升代码质量标准
 - **目录结构**: 新增 `cmap/` 目录存放配色预览图片
 
-#### 💡 科学可视化原则
+#### 科学可视化原则
 所有配色方案严格遵循科学可视化标准：
 - **低值显示**: 浅色、冷色调用于显示低功率密度值
 - **高值显示**: 深色、暖色调用于显示高功率密度值
@@ -489,7 +501,7 @@ period_limits = [0.1, 100]  # 限制周期范围
 - **平滑过渡**: 颜色变化自然，避免突兀跳跃
 - **期刊兼容**: 支持黑白打印和色盲友好显示
 
-#### 🎯 应用建议
+#### 应用建议
 - **期刊发表**: 推荐使用 `science_custom` 或 `pqlx_custom`
 - **学术展示**: 推荐使用 `aurora_premium_custom` 或艺术主题配色
 - **专业领域**: 根据研究领域选择主题相关配色（海洋学、生态学、极地研究等）
@@ -500,10 +512,10 @@ period_limits = [0.1, 100]  # 限制周期范围
 ## 版本信息
 
 - **当前版本**: 1.1.0
-- **Python要求**: >= 3.8
-- **主要依赖**: ObsPy >= 1.4.0, matplotlib >= 3.5.0
+- **Python要求**: >= 3.12
+- **主要依赖**: ObsPy >= 1.4.1, matplotlib >= 3.5.0
 - **最后更新**: 2025年6月7日
 
 ## 许可证
 
-本项目遵循开源许可证，具体信息请查看LICENSE文件。 
+本项目遵循开源许可证，具体信息请查看LICENSE文件。

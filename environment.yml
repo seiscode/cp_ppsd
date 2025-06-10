@@ -1,0 +1,22 @@
+name: seis
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - obspy>=1.4.1
+  - matplotlib>=3.5.0
+  - numpy>=1.21.0
+  - scipy>=1.7.0
+  - toml>=0.10.2
+  - tqdm>=4.62.0
+  # 可选依赖（提升用户体验）
+  - pip
+  # 开发和测试依赖（可选）
+  # - pytest>=6.0.0
+  # - flake8>=3.8.0
+  
+  # 使用pip安装的额外依赖（如果conda中不可用）
+  - pip:
+    # 这里可以添加conda中没有的包
+    # - some-pip-only-package
