@@ -1,6 +1,6 @@
 # PPSD Batch Processing and Visualization Tool
 
-This project is a Python-based seismological data analysis tool specifically designed for batch computation and visualization of Probabilistic Power Spectral Density (PPSD). The tool is built on the ObsPy library, supports flexible parameter configuration through TOML configuration files, and provides professional four-in-one analysis charts.
+This project is developed by the [Seismic Data Processing Group,](#About the Seismic Data Processing Group) serving as a Python-based tool for seismological data analysis. It is specifically designed for the batch processing and visualization of Probabilistic Power Spectral Density (PPSD). The tool is built upon the [ObsPy](https://github.com/obspy/obspy) library, supports flexible parameter configuration via TOML files, and provides professional four-in-one analysis plots.
 
 ## Main Features
 
@@ -464,6 +464,18 @@ For technical questions and support:
 2. Review log files for error diagnosis  
 3. Validate configuration parameters
 4. Test with sample data sets
+
+##  About the Seismic Data Processing Group
+
+Our group focuses on cutting-edge research and software development in the field of seismology. The team is led by Lin Xiangdong, with core members including Mu Leiyu, Yang Xuan, and Wu Peng.
+
+Our key objectives include:
+
+- Algorithm Development: Building on the theoretical foundations of the book Seismic Data Processing Techniques¹, we are dedicated to developing advanced seismological algorithms. These algorithms serve as both extensions and supplements to the classic methods in the book, while also incorporating our team's innovative approaches to enhance the precision and efficiency of data processing.
+- Open-Source Contributions: Providing stable and efficient open-source programs for seismic data processing to serve the scientific community.
+- Data Research: Conducting analysis of real-world seismic data and publishing our findings in academic papers.
+
+We are committed to bridging the gap between theoretical research and practical application to drive progress in the field of seismology.
 
 ## License
 
