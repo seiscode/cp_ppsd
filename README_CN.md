@@ -1,6 +1,6 @@
 # PPSD 批量处理与可视化工具
 
-本项目由[地震数据处理小组](#地震数据处理小组简介)研发，是一个基于Python的地震学数据分析工具，专门用于批量计算和可视化概率功率谱密度（PPSD, Probabilistic Power Spectral Density）。该工具基于[ObsPy](https://github.com/obspy/obspy)库实现，支持通过TOML配置文件进行灵活的参数配置，并提供专业的四合一分析图表。
+本项目由[地震数据处理小组](#地震数据处理小组简介)研发，是一个基于Python的地震学数据分析工具，专门用于批量计算和可视化概率功率谱密度（PPSD, Probabilistic Power Spectral Density）。该工具基于[ObsPy](https://github.com/obspy/obspy)库实现，支持通过TOML配置文件进行灵活的参数配置。
 
 ## 主要功能
 
