@@ -1,6 +1,6 @@
 # PPSD Batch Processing and Visualization Tool
 
-This project is developed by [the_Seismic_Data_Processing_Group](#About_the_Seismic_Data_Processing_Group) serving as a Python-based tool for seismological data analysis. It is specifically designed for the batch processing and visualization of Probabilistic Power Spectral Density (PPSD). The tool is built upon the [ObsPy](https://github.com/obspy/obspy) library, supports flexible parameter configuration via TOML files, and provides professional four-in-one analysis plots.
+This project is developed by [the Seismic Data Processing Group](#About_the_Seismic_Data_Processing_Group) serving as a Python-based tool for seismological data analysis. It is specifically designed for the batch processing and visualization of Probabilistic Power Spectral Density (PPSD). The tool is built upon the [ObsPy](https://github.com/obspy/obspy) library, supports flexible parameter configuration via TOML files, and provides professional four-in-one analysis plots.
 
 ## Main Features
 
@@ -465,7 +465,7 @@ For technical questions and support:
 3. Validate configuration parameters
 4. Test with sample data sets
 
-## About the Seismic Data Processing Group
+## About_the_Seismic_Data_Processing_Group
 
 Our group focuses on cutting-edge research and software development in the field of seismology. The team is led by Lin Xiangdong, with core members including Mu Leiyu, Yang Xuan, and Wu Peng.
 
