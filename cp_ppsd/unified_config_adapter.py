@@ -3,8 +3,8 @@
 Author:
     muly (muly@cea-igp.ac.cn)
 license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
+    MIT License
+    (https://opensource.org/licenses/MIT)
 """
 """
 统一配置适配器 - 支持两种格式的config_plot.toml配置
