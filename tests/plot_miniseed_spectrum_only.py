@@ -10,9 +10,6 @@ BJ台网MinISEED数据频谱图绘制工具
 - 只生成频谱分析图（不生成波形图）
 - 频谱图横轴使用对数坐标
 - 保存高质量PNG图像
-
-Author: AI Assistant  
-Date: 2025-01-30
 """
 
 import os
