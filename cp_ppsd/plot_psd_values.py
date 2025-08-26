@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-:Author:
+Author:
     muly (muly@cea-igp.ac.cn)
-:license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
+license:
+    MIT License
+    (https://opensource.org/licenses/MIT)
 """
 """
 从PPSD NPZ文件中提取所有PSD值并在频率-dB坐标系中绘制
