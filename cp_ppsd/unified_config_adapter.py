@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-:Author:
+Author:
     muly (muly@cea-igp.ac.cn)
-:license:
+license:
     GNU Lesser General Public License, Version 3
     (https://www.gnu.org/copyleft/lesser.html)
 """
