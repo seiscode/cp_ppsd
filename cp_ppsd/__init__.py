@@ -1,9 +1,9 @@
 """
 Author:
     muly (muly@cea-igp.ac.cn)
-:license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
+license:
+    MIT License
+    (https://opensource.org/licenses/MIT)
 """
 """
 CP-PPSD: 概率功率谱密度计算与可视化工具包
