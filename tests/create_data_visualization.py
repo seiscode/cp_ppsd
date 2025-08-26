@@ -9,9 +9,6 @@
 - 创建HTML数据报告
 - 文件大小和台站信息可视化
 - 不依赖matplotlib或ObsPy
-
-Author: AI Assistant
-Date: 2025-01-30
 """
 
 import os
