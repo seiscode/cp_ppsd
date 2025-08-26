@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-:copyright:
+Author:
     muly (muly@cea-igp.ac.cn)
-:license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
+license:
+    MIT License
+    (https://opensource.org/licenses/MIT)
 
 PPSD测试套件运行器
 
