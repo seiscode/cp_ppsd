@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-:copyright:
+Author:
     muly (muly@cea-igp.ac.cn)
-:license:
-    GNU Lesser General Public License, Version 3
-    (https://www.gnu.org/copyleft/lesser.html)
+license:
+    MIT License
+    (https://opensource.org/licenses/MIT)
 
 PPSD NPZ文件内容解析脚本
 基于ObsPy官方文档：https://docs.obspy.org/master/packages/autogen/obspy.signal.spectral_estimation.PPSD.html
