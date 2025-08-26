@@ -4,9 +4,6 @@
 Peterson Curves Plotting Tool
 Generate Peterson (1993) New Low/High Noise Models (NLNM/NHNM)
 Standard reference curves for seismic station noise evaluation
-
-Author: muly
-Created: 2025-01-30
 """
 
 import numpy as np
