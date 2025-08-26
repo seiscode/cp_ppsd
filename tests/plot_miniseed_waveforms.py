@@ -10,9 +10,6 @@ BJ台网MinISEED数据波形图绘制工具
 - 生成多台站对比波形图
 - 支持时间域和频谱分析
 - 保存高质量PNG图像
-
-Author: AI Assistant
-Date: 2025-01-30
 """
 
 import os
